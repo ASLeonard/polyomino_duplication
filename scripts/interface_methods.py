@@ -1,7 +1,110 @@
 import numpy as np
 from numpy import linalg as LA
 import os
+from matplotlib import pyplot as plt
+from scipy.stats import binom
+from math import ceil
+from matplotlib.colors import LogNorm
 
+def llx(S,fname='Discovs'):
+     return [[int(i) for i in line.split()] for line in open('/rscratch/asl47/Discs/{}{:.6f}.BIN'.format(fname,S))]
+
+    
+     
+def ppx(l_I):
+     def SF_sym(S_stars):
+          return 1/binom(l_I/2,.5).sf(np.ceil(l_I/2*S_stars)-1)
+     def SF_asym(S_stars):
+          return 1/binom(l_I,.5).sf(np.ceil(l_I*S_stars)-1)
+     
+     plt.figure()
+     s_hats=np.linspace(0,1,65)[34:54]
+     
+     data=[]
+     for s in s_hats:
+          for tds,form in zip(llx(s),('S','A')):
+               for td in tds:
+                    if td>0:
+                         data.append({'td': td, 'sym': form,'thresh':s})
+
+     df=pandas.DataFrame(data)
+     ax = sns.violinplot(x="thresh", y="td", hue="sym",data=df, cut=0,gridpoints=1000,palette="Set2", split=True,scale="count", inner="quartile")
+     ax.plot(range(len(s_hats)),SF_asym(s_hats),ls='--',c='coral',marker='D',mec='k',mfc='None')
+     ax.plot(range(0,len(s_hats),2),SF_sym(s_hats[::2]),ls='--',c='forestgreen',marker='h',mec='w',mfc='None')
+     ax.set_yscale('log')
+     _=ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
+     ax.set(xlabel=r'$\hat{S}_c$', ylabel=r'$\langle \tau_D \rangle$')
+     ax.set_title('Discovery time of symmetric and asymmetric interactions')
+     
+     ab = plt.axes([.3, .6, .2, .2], facecolor='gainsboro')
+     for lz,col in zip((32,64,128),('royalblue','darkmagenta','indianred')):
+          sts=np.linspace(0,1,lz)[lz//2:]
+          l_I=lz
+          ab.plot(sts,SF_asym(sts)/SF_sym(sts),ls='--',marker='o',mfc='None',mec=col,c=col,label=lz,lw=2)
+     ab.set_yscale('log')
+     ab.legend()
+     ab.set_title(r'$Q \langle \tau_D \rangle$')
+     
+     plt.show(block=False)
+
+def plotDecay():
+     f,(ax1,ax2) = plt.subplots(1,2)
+     s_hats=np.linspace(0,1,65)[34:65]
+     data=[np.zeros((int(ceil(len(s_hats)/2)),int(s_hats[0]*32))),np.zeros((len(s_hats),int(s_hats[0]*64)))]
+
+     for i,s in enumerate(s_hats):
+          for j,tds in enumerate(llx(s,'Decays')):
+               ar=np.array(tds,dtype=np.float)
+               ar[ar==0]=np.nan
+               if int(s*64)%2==1 and j%2==0: #is faulty symmetric
+                    continue
+               if j>0 and j%4==2: #is faulty symmetric gap
+                    continue
+
+               data[j%2][i//(2-j%2),(j//2)//(2-j%2)]=np.nanmean(ar)
+
+     rs1=ax1.imshow(data[1].T,norm=LogNorm())
+     plt.colorbar(rs1,ax=ax1)
+     rs2=ax2.imshow(data[0].T,norm=LogNorm())
+     plt.colorbar(rs2,ax=ax2)
+
+     for i,s in enumerate(s_hats):
+          ax1.scatter(i,0 if s==1. else 64*(1-RandomWalk(64,0,0,s,1)),marker='D',color='r')
+          if s==1.:
+               exsp=[1]
+               
+          else:
+               exsp=expected_steps_fast(__matrix(64,s).T)
+          max_g=64-int(s*64)
+          for j,g in enumerate(range(max_g+1)):
+               ax1.text(i,max_g-j,int(exsp[j]),color='w' if int(exsp[j])<=5 else 'k',fontsize=8,va='center',ha='center')
+
+     for i,s in enumerate(s_hats[::2]):
+          ax2.scatter(i,0 if s==1. else 32*(1-RandomWalk(32,0,0,s,1)),marker='D',color='r')
+          if s==1.:
+               exsp=[1]
+          else:
+               exsp=expected_steps_fast(__matrix(32,s).T)
+          max_g=32-int(s*32)
+          for j,g in enumerate(range(max_g+1)):
+               ax2.text(i,max_g-j,int(exsp[j]),color='w' if int(exsp[j])<=5 else 'k',fontsize=8,va='center',ha='center')
+     ax1.set_xticks(np.arange(len(s_hats)))
+     ax1.set_xticklabels(s_hats,rotation=45)
+
+     
+
+     ax2.set_xticks(np.arange(len(s_hats[::2])))
+     ax2.set_xticklabels(s_hats[::2],rotation=45)
+
+     ax1.set_xlabel(r'$\hat{S}_c$')
+     ax1.set_ylabel(r'$\Delta S$')
+
+     plt.suptitle('Decay of asymmetrics and symmetrics')
+     plt.show(block=False)
+     
+     
+     
+     
 def setBasePath(path,binary_mode):
      if binary_mode:
           default_file='/{}_Run{}.BIN'
@@ -127,14 +230,38 @@ def ObjArray(data):
      return nparr 
 
 """ DRIFT SECTION """
+
+def __matrix(I_size,S_star):
+     N_states=int(I_size*(1-S_star))+1
+     val=np.linspace(0,1,I_size+1)[-N_states:]
+     rows=[[0]*(N_states+1),[val[0],0,1-val[0]]+[0]*(N_states-2)]
+     for i in range(1,N_states-1):
+          rows.append([0]*(i)+[val[i],0,1-val[i]]+[0]*(N_states-2-i))
+     rows.append([0]*(N_states-1)+[val[-1],0])
+     matrix= np.vstack(rows).T
+     return matrix
+     
+
+def expected_steps_fundamental(Q):
+    I = np.identity(Q.shape[0])
+    N = np.linalg.inv(I - Q)
+    o = np.ones(Q.shape[0])
+    return np.dot(N,o)
+
+def expected_steps_fast(Q):
+    I = np.identity(Q.shape[0])
+    o = np.ones(Q.shape[0])
+    return np.linalg.solve(I-Q, o)[1:]-1
+
+
 def RandomWalk(I_size=64,n_steps=1000,phi=0.5,S_star=0.6,analytic=False):
      s_hats=np.linspace(0,1,I_size+1)
      N=int(I_size*(1-S_star))+1
      
      if analytic:
-          analytic_states=__getSteadyStates(N,phi,s_hats[-N:])[1]
+          analytic_states=__getSteadyStates(__matrix(I_size,S_star)[1:,1:])[1]
           #return analytic_states
-          return sum(s_hats[-N:-N+7]*analytic_states[:7])
+          return sum(s_hats[-N:]*analytic_states)
      
      states=np.array([1]+[0]*(N-1),dtype=float)
      progressive_states=[sum(s_hats[-N:]*states)]
@@ -154,12 +281,7 @@ def __updateStates(states,val,phi=0.5):
                states_updating[i]+=states[i+1]*phi*val[i+1]
      return states_updating/sum(states_updating)     
 
-def __getSteadyStates(N_states,mu,val):
-     rows=[[1-mu,mu*(1-val[0])]+[0]*(N_states-2)]
-     for i in range(1,N_states-1):
-          rows.append([0]*(i-1)+[mu*val[i],1-mu,mu*(1-val[i])]+[0]*(N_states-2-i))
-     rows.append([0]*(N_states-2)+[mu*val[-1],1-mu])
-     matrix= np.vstack(rows).T 
+def __getSteadyStates(matrix):
      eigval,eigvec=LA.eig(matrix)
      va=max(eigval)
      ve=eigvec.T[np.argmax(eigval)]

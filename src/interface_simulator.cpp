@@ -3,7 +3,7 @@
 
 constexpr bool BINARY_WRITE_FILES=false;
 bool KILL_BACK_MUTATIONS=false;
-const std::string file_base_path="//scratch//asl47//Data_Runs//Bulk_Data//";
+const std::string file_base_path="//rscratch//asl47//Discs//";
 const std::map<Phenotype_ID,uint8_t> phen_stages{{{0,0},0},{{10,0},4},{{1,0},1},{{2,0},2},{{4,0},2},{{4,1},3},{{8,0},3},{{12,0},4},{{16,0},4}};
 
 namespace simulation_params {
@@ -12,186 +12,176 @@ namespace simulation_params {
 }
 
 void EvolutionRunner() {
-  const uint16_t N_runs=simulation_params::independent_trials;
-  const std::string py_analysis_mode="internal "+std::to_string(simulation_params::model_type); 
-  const std::string python_call="python3 ~/Documents/PolyDev/polyomino_interfaces/scripts/interface_analysis.py "+py_analysis_mode+" "+std::to_string(BINARY_WRITE_FILES)+" ";
-  const std::string python_params=" "+std::to_string(simulation_params::binding_threshold)+" "+std::to_string(simulation_params::temperature)+" "+std::to_string(simulation_params::mu_prob)+" "+std::to_string(simulation_params::fitness_factor)+" "+std::to_string(simulation_params::population_size);
+  const uint32_t N_runs=simulation_params::independent_trials;
+  std::ofstream f_out(file_base_path+"Discovs"+std::to_string(simulation_params::binding_threshold)+".BIN");
 
   
 #pragma omp parallel for schedule(dynamic) 
-  for(uint16_t r=0;r < N_runs;++r) {
-    EvolvePopulation("_Run"+std::to_string(r+simulation_params::run_offset));
-    /*!PYTHON CALL*/
-    std::system((python_call+std::to_string(r)+python_params).c_str());
-    /*!PYTHON CALL*/
-  }
-  //python3 ~/Documents/PolyDev/polyomino_interfaces/scripts/interface_analysis.py "external" $Model $Thresh $T $Mu $Gamma $RUNS
-}
-void ReducedModelTable(FitnessPhenotypeTable* pt) {
-  model_params::FIXED_TABLE=true;
-  KILL_BACK_MUTATIONS=true;
-  pt->known_phenotypes[1].emplace_back(Phenotype{1,1, {1}});
-  pt->known_phenotypes[2].emplace_back(Phenotype{2,1, {1, 5}});
-  pt->known_phenotypes[4].emplace_back(Phenotype{2,2, {1, 2, 4, 3}});
-  pt->known_phenotypes[4].emplace_back(Phenotype{2,2, {1, 2, 4, 5}});
-  pt->known_phenotypes[10].emplace_back(Phenotype{4,3, {0, 1, 2, 0, 1, 5, 6, 2, 4, 3, 7, 3}});
-  pt->known_phenotypes[8].emplace_back(Phenotype{4,4, {0, 0, 1, 0, 4, 5, 6, 0, 0, 8, 7, 2, 0, 3, 0, 0}});
-  pt->known_phenotypes[12].emplace_back(Phenotype{4,4, {0, 1, 2, 0, 1, 5, 6, 2, 4, 8, 7, 3, 0, 4, 3, 0}});
-  pt->known_phenotypes[16].emplace_back(Phenotype{4,4, {1, 2, 1, 2, 4, 5, 6, 3, 1, 8, 7, 2, 4, 3, 4, 3}});
-
-  const double base_multiplier=simulation_params::fitness_jump;
-  pt->phenotype_fitnesses[1].emplace_back(1);
-  pt->phenotype_fitnesses[2].emplace_back(std::pow(base_multiplier,1));
-  pt->phenotype_fitnesses[4].emplace_back(std::pow(base_multiplier,1));
-  pt->phenotype_fitnesses[4].emplace_back(std::pow(base_multiplier,2));
-  pt->phenotype_fitnesses[8].emplace_back(std::pow(base_multiplier,2));
-  pt->phenotype_fitnesses[10].emplace_back(0);
-  pt->phenotype_fitnesses[12].emplace_back(std::pow(base_multiplier,3));
-  pt->phenotype_fitnesses[16].emplace_back(std::pow(base_multiplier,3));
-}
-
-void FinalModelTable(FitnessPhenotypeTable* pt) {
-  model_params::FIXED_TABLE=true;
-  KILL_BACK_MUTATIONS=true;
-  pt->known_phenotypes[4].emplace_back(Phenotype{2,2, {1, 2, 4, 3}});
-  pt->known_phenotypes[12].emplace_back(Phenotype{4,4, {0, 1, 2, 0, 1, 5, 6, 2, 4, 8, 7, 3, 0, 4, 3, 0}});
-  pt->known_phenotypes[10].emplace_back(Phenotype{4,3, {0, 1, 2, 0, 1, 5, 6, 2, 4, 3, 7, 3}});
-  pt->phenotype_fitnesses[4].emplace_back(0);
-  pt->phenotype_fitnesses[12].emplace_back(0);
-  pt->phenotype_fitnesses[10].emplace_back(0);
-}
-
-void DimerModelTable(FitnessPhenotypeTable* pt) {
-  model_params::FIXED_TABLE=true;
-  pt->known_phenotypes[2].emplace_back(Phenotype{2,1, {1,3}});
-  pt->known_phenotypes[2].emplace_back(Phenotype{2,1, {1,5}});
-  pt->phenotype_fitnesses[2].emplace_back(1);
-  pt->phenotype_fitnesses[2].emplace_back(1);
-}
-
-
-void EvolvePopulation(std::string run_details) {
-  std::string file_simulation_details=BINARY_WRITE_FILES ? run_details+".BIN" : "_Y"+std::to_string(simulation_params::binding_threshold)+"_T"+ std::to_string(simulation_params::temperature) +"_Mu"+std::to_string(simulation_params::mu_prob)+"_Gamma"+std::to_string(simulation_params::fitness_factor)+run_details+".txt";
+  for(uint32_t r=0;r < N_runs;++r) {
+    uint32_t gen=0;
+    if(simulation_params::samming_threshold%2==0)
+      gen = Evo1();
+#pragma omp critical(file_write)
+    f_out<<+gen<<" ";
     
-  std::ofstream fout_strength(file_base_path+"Strengths"+file_simulation_details,BINARY_WRITE_FILES ? std::ios::binary :std::ios::out);
-  std::ofstream fout_phenotype(file_base_path+"PhenotypeTable"+run_details+".BIN",std::ios::out);  
-  std::ofstream fout_selection_history(file_base_path+"Selections"+file_simulation_details,BINARY_WRITE_FILES ? std::ios::binary :std::ios::out);    
-  std::ofstream fout_phenotype_IDs(file_base_path+"PIDs"+file_simulation_details,BINARY_WRITE_FILES ? std::ios::binary :std::ios::out );
+  }
   
+  f_out<<"\n";
+#pragma omp parallel for schedule(dynamic) 
+  for(uint32_t r=0;r < N_runs;++r) {
+    uint32_t gen = Evo2();
+#pragma omp critical(file_write)
+    f_out<<+gen<<" ";
+  }
+  f_out<<"\n";
+}
+
+void EvolutionRunner2() {
+  const uint32_t N_runs=simulation_params::independent_trials;
+  std::ofstream f_out(file_base_path+"Decays"+std::to_string(simulation_params::binding_threshold)+".BIN");
+  for(uint8_t gap=0;gap<=simulation_params::samming_threshold;++gap) {
+#pragma omp parallel for schedule(dynamic) 
+    for(uint32_t r=0;r < N_runs;++r) {
+      uint32_t gen=0;
+      if(gap%2==0 && simulation_params::samming_threshold%2==0)
+        gen = DEvo1(gap/2);
+#pragma omp critical(file_write)
+      f_out<<+gen<<" ";
+    
+    }
   
+    f_out<<"\n";
+#pragma omp parallel for schedule(dynamic) 
+    for(uint32_t r=0;r < N_runs;++r) {
+      uint32_t gen = DEvo2(gap);
+#pragma omp critical(file_write)
+      f_out<<+gen<<" ";
+    }
+    f_out<<"\n";
+  }
+}
+
+uint32_t Evo1() {
+  std::uniform_int_distribution<interface_type> fil;
+  uint64_t geno=fil(RNG_Engine);
+  std::uniform_int_distribution<uint8_t> dis(0, 63);
+  for(uint32_t generation=1;generation<=simulation_params::generation_limit;++generation) {
+    geno^= (interface_type(1) << dis(RNG_Engine));
+    if(interface_model::SammingDistance(geno,geno)<=simulation_params::samming_threshold)
+      return generation;
+  }
+  return 0;
+}
+uint32_t Evo2() {
+  std::uniform_int_distribution<interface_type> fil;
+  uint64_t geno1,geno2;
+  do {
+    geno1=fil(RNG_Engine);
+    geno2=fil(RNG_Engine);
+  }while(interface_model::SammingDistance(geno1,geno2)<=simulation_params::samming_threshold);
+
+  std::uniform_int_distribution<uint8_t> dis(0, 63);
+  for(uint32_t generation=1;generation<=simulation_params::generation_limit;++generation) {
+    geno1^= (interface_type(1) << dis(RNG_Engine));
+    if(interface_model::SammingDistance(geno1,geno2)<=simulation_params::samming_threshold)
+      return generation;
+  }
+  return 0;
+}
+
+uint32_t DEvo1(uint8_t gap) {
+  std::uniform_int_distribution<interface_type> fil;
+  uint64_t geno=fil(RNG_Engine);
+  geno=(interface_model::ReverseBits(~(geno>>32))>>32) | ((geno>>32)<<32);
+  std::uniform_int_distribution<uint8_t> dis(0, 63);
+  std::vector<uint8_t> bits(32);
+  std::iota(bits.begin(),bits.end(),0);
+  std::shuffle(bits.begin(),bits.end(),RNG_Engine);
+
+  for(uint8_t b=0; b<gap;++b)
+    geno ^=(interface_type(1)<<bits[b]);
+  
+  for(uint32_t generation=1;generation<=simulation_params::generation_limit;++generation) {
+    geno^= (interface_type(1) << dis(RNG_Engine));
+    if(interface_model::SammingDistance(geno,geno)>simulation_params::samming_threshold)
+      return generation;
+  }
+  return 0;
+}
+
+uint32_t DEvo2(uint8_t gap) {
+  std::uniform_int_distribution<interface_type> fil;
+  uint64_t geno1=fil(RNG_Engine);
+  uint64_t geno2=interface_model::ReverseBits(~geno1);
+
+  std::uniform_int_distribution<uint8_t> dis(0, 63);
+  std::vector<uint8_t> bits(64);
+  std::iota(bits.begin(),bits.end(),0);
+  std::shuffle(bits.begin(),bits.end(),RNG_Engine);
+
+  for(uint8_t b=0; b<gap;++b)
+    geno1 ^=(interface_type(1)<<bits[b]);
+  
+  for(uint32_t generation=1;generation<=simulation_params::generation_limit;++generation) {
+    geno1^= (interface_type(1) << dis(RNG_Engine));
+    if(interface_model::SammingDistance(geno1,geno2)>simulation_params::samming_threshold)
+      return generation;
+  }
+  return 0;
+}
+
+
+
+uint32_t Evo(uint8_t ttype) {
+
+
+  FitnessPhenotypeTable pt = FitnessPhenotypeTable();
+  DimerModelTable(&pt);
+  pt.known_phenotypes[2][0].tiling={1,ttype};
+
   std::vector<double> population_fitnesses(simulation_params::population_size);
   std::vector<PopulationGenotype> evolving_population(simulation_params::population_size),reproduced_population(simulation_params::population_size);
   
-  FitnessPhenotypeTable pt = FitnessPhenotypeTable();
-  DynamicFitnessLandscape dfl(&pt,simulation_params::fitness_period,simulation_params::fitness_rise);
-  
-  switch(simulation_params::model_type) {
-  case 3: DimerModelTable(&pt);
-    {
-      BGenotype ref_genotype=GenerateTargetGraph({{0,{0}}},4);
-      ref_genotype.insert(ref_genotype.end(),ref_genotype.begin(),ref_genotype.end());
-      for(auto& species : evolving_population)
-        species.genotype=ref_genotype;
-    }
-    break;
-      
-  case 2: FinalModelTable(&pt);
-    {
-      const BGenotype ref_genotype=GenerateTargetGraph({{1,{0,7}},{4,{5}}},simulation_params::n_tiles*4);
-      for(auto& species : evolving_population)
-        species.genotype=ref_genotype;
-    }
-    break;
-  case 1: ReducedModelTable(&pt);
-    [[fallthrough]];
-  default:
-    for(auto& species : evolving_population)
-      RandomiseGenotype(species.genotype);
-    break;
+  for(auto& species : evolving_population) {
+    species.genotype.resize(2);
+    RandomiseGenotype(species.genotype);
   }
   
-  std::set<interaction_pair> pid_interactions;
-  BGenotype assembly_genotype;
-  Phenotype_ID prev_ev;
-  std::vector<uint8_t> binary_pids,binary_strengths;
-  std::vector<uint16_t> binary_selections;
-  if constexpr (BINARY_WRITE_FILES) {
-    binary_pids.reserve(2*simulation_params::population_size);
-    binary_strengths.reserve(12*simulation_params::population_size);
-    binary_selections.reserve(simulation_params::population_size);
-  }
-  
-  
+  std::set<interaction_pair> pid_interactions;  
   for(uint32_t generation=0;generation<simulation_params::generation_limit;++generation) { /*! MAIN EVOLUTION LOOP */
-
-    if(simulation_params::model_type==2)
-      dfl(generation);
-
     uint16_t nth_genotype=0;
     for(PopulationGenotype& evolving_genotype : evolving_population) { /*! GENOTYPE LOOP */
-      InterfaceAssembly::Mutation(evolving_genotype.genotype);      
-     
-      if(simulation_params::model_type==1)
-        EnsureNeutralDisconnections(evolving_genotype.genotype);         
-            
-      assembly_genotype=evolving_genotype.genotype;
-      prev_ev=evolving_genotype.pid;
+      InterfaceAssembly::Mutation(evolving_genotype.genotype);                       
+      BGenotype assembly_genotype=evolving_genotype.genotype;      
       population_fitnesses[nth_genotype]=interface_model::PolyominoAssemblyOutcome(assembly_genotype,&pt,evolving_genotype.pid,pid_interactions);
-
-      if((simulation_params::model_type==2 && assembly_genotype.size()/4 != simulation_params::n_tiles) || (KILL_BACK_MUTATIONS && prev_ev!=evolving_genotype.pid && phen_stages.at(prev_ev)>=phen_stages.at(evolving_genotype.pid))) {
-        population_fitnesses[nth_genotype]=0;
-        evolving_genotype.pid=NULL_pid;
-        pid_interactions.clear();        
-      }
       ++nth_genotype;
+      if(evolving_genotype.pid.first==2)
+        return generation;
 
-
-      if constexpr (BINARY_WRITE_FILES) {
-        binary_pids.emplace_back(evolving_genotype.pid.first);
-        binary_pids.emplace_back(evolving_genotype.pid.second);
-        for(auto x : pid_interactions)
-          binary_strengths.insert(binary_strengths.end(),{x.first,x.second,interface_model::SammingDistance(assembly_genotype[x.first],assembly_genotype[x.second])});
-        binary_strengths.emplace_back(255);
-      }
-      else {
-        for(auto x : pid_interactions)
-          fout_strength<<+x.first<<" "<<+x.second<<" "<<+interface_model::SammingDistance(assembly_genotype[x.first],assembly_genotype[x.second])<<".";
-        fout_strength<<",";
-        fout_phenotype_IDs << +evolving_genotype.pid.first <<" "<<+evolving_genotype.pid.second<<" ";
-      }
     } /*! END GENOTYPE LOOP */
 
     /*! SELECTION */
     uint16_t nth_repro=0;
     for(uint16_t selected : RouletteWheelSelection(population_fitnesses)) {
       reproduced_population[nth_repro++]=evolving_population[selected];
-      if constexpr (BINARY_WRITE_FILES)
-        binary_selections.emplace_back(selected);
-      else
-        fout_selection_history<<+selected<<" ";
     }
     evolving_population.swap(reproduced_population);
-
-  
-    if constexpr (BINARY_WRITE_FILES) {
-      BinaryWriter(fout_phenotype_IDs,binary_pids);
-      binary_pids.clear();
-      BinaryWriter(fout_selection_history,binary_selections);
-      binary_selections.clear();
-      BinaryWriter(fout_strength,binary_strengths);
-      binary_strengths.clear();
-    }
-    else {
-      fout_selection_history<<"\n";
-      fout_phenotype_IDs<<"\n";
-      fout_strength<<"\n";
-    }
-    
-  } /* END EVOLUTION LOOP */
-  if(!model_params::FIXED_TABLE)
-    pt.PrintTable(fout_phenotype);
-  
+  }
+  return simulation_params::generation_limit;
 }
+
+
+
+void DimerModelTable(FitnessPhenotypeTable* pt) {
+  model_params::FIXED_TABLE=true;
+  pt->known_phenotypes[1].emplace_back(Phenotype{1,1, {1}});
+  pt->known_phenotypes[2].emplace_back(Phenotype{2,1, {1,3}});
+  pt->phenotype_fitnesses[1].emplace_back(1);
+  pt->phenotype_fitnesses[2].emplace_back(2);
+
+}
+
+
 
 /********************/
 /*******!MAIN!*******/
@@ -210,7 +200,7 @@ int main(int argc, char* argv[]) {
   
   switch(run_option) {
   case 'E':
-    EvolutionRunner();
+    EvolutionRunner2();
     break;
   case '?':
     PrintBindingStrengths();
@@ -266,5 +256,6 @@ void SetRuntimeConfigurations(int argc, char* argv[]) {
 
   }
 }
+
 
 

@@ -5,24 +5,25 @@ from matplotlib import pyplot as plt
 from scipy.stats import binom
 from math import ceil
 from matplotlib.colors import LogNorm
+import pandas
+import seaborn as sns
 
-def llx(S,fname='Discovs'):
+def loadData(S,fname='Discovs'):
      return [[int(i) for i in line.split()] for line in open('/rscratch/asl47/Discs/{}{:.6f}.BIN'.format(fname,S))]
 
-    
      
-def ppx(l_I):
+def plotDiscovery(l_I):
      def SF_sym(S_stars):
           return 1/binom(l_I/2,.5).sf(np.ceil(l_I/2*S_stars)-1)
      def SF_asym(S_stars):
           return 1/binom(l_I,.5).sf(np.ceil(l_I*S_stars)-1)
      
      plt.figure()
-     s_hats=np.linspace(0,1,65)[34:54]
+     s_hats=np.linspace(0,1,65)[34:55]
      
      data=[]
      for s in s_hats:
-          for tds,form in zip(llx(s),('S','A')):
+          for tds,form in zip(loadData(s),('S','A')):
                for td in tds:
                     if td>0:
                          data.append({'td': td, 'sym': form,'thresh':s})

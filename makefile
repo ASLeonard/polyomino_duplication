@@ -1,10 +1,10 @@
 MAKEFLAGS+="-j $(nproc)"
 
 #Compiler and Linker
-CXX         := g++
+CXX         := g++-8
 
 #The Target Binary Program
-PE_TARGET   := ProteinEvolution
+Du_TARGET   := DuplicationEvolution
 
 
 #The Directories, Source, Includes, Objects, Binary and Resources
@@ -13,7 +13,6 @@ INCDIR      := includes
 LIBDIR      := polyomino_core
 BUILDDIR    := build
 TARGETDIR   := bin
-PROFDIR	    := profiling
 SRCEXT      := cpp
 DEPEXT      := d
 OBJEXT      := o
@@ -34,12 +33,12 @@ INCDEP      := -I$(INCDIR) -I$(LIBDIR)/$(INCDIR)
 #---------------------------------------------------------------------------------
 #DO NOT EDIT BELOW THIS LINE
 #---------------------------------------------------------------------------------
-PE_SOURCES := $(shell find $(SRCDIR) -type f -name interface_*.$(SRCEXT))
-PE_OBJECTS     := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(PE_SOURCES:.$(SRCEXT)=.$(OBJEXT)))
+Du_SOURCES := $(shell find $(SRCDIR) -type f -name duplication_*.$(SRCEXT))
+Du_OBJECTS     := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(Du_SOURCES:.$(SRCEXT)=.$(OBJEXT)))
 
 
 #Default Make
-all: Pe 
+all: Du
 
 #Clean only Objects
 clean:
@@ -47,12 +46,12 @@ clean:
 
 #Pull in dependency info for *existing* .o files
 
--include $(PE_OBJECTS:.$(OBJEXT)=.$(DEPEXT))
+-include $(Du_OBJECTS:.$(OBJEXT)=.$(DEPEXT))
 -include $(CORE_OBJECTS:.$(OBJEXT)=.$(DEPEXT))
 
-Pe: $(PE_OBJECTS) $(CORE_OBJECTS) 
+Du: $(Du_OBJECTS) $(CORE_OBJECTS) 
 	@mkdir -p $(TARGETDIR)
-	$(CXX) $(CXXFLAGS) -Wl,--gc-sections -o $(TARGETDIR)/$(PE_TARGET) $^
+	$(CXX) $(CXXFLAGS) -Wl,--gc-sections -o $(TARGETDIR)/$(Du_TARGET) $^
 
 
 #Compile
@@ -67,7 +66,7 @@ $(BUILDDIR)/%.$(OBJEXT): $(SRCDIR)/%.$(SRCEXT)
 
 
 #Non-File Targets
-.PHONY: all clean Pe check-and-reinit-submodules
+.PHONY: all clean Du check-and-reinit-submodules
 
 check-and-reinit-submodules:
 	@if git submodule status | egrep -q '^[-]|^[+]' ; then \

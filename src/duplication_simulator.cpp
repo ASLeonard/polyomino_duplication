@@ -1,4 +1,4 @@
-#include "interface_simulator.hpp"
+#include "duplication_simulator.hpp"
 #include <iostream>
 
 constexpr bool BINARY_WRITE_FILES=false;

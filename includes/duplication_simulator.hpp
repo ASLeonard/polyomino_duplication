@@ -1,4 +1,4 @@
-#include "interface_model.hpp"
+#include "duplication.hpp"
 #include <functional>
 
 namespace simulation_params

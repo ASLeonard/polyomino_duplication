@@ -27,7 +27,6 @@ namespace simulation_params
 {
   extern uint8_t model_type,n_tiles,samming_threshold;
   extern uint16_t dissociation_time;
-  extern bool fixed_seed;
   extern double temperature,binding_threshold,mu_prob;
 }
 
@@ -37,7 +36,7 @@ namespace interface_model
   uint8_t SammingDistance(interface_type face1,interface_type face2);
 
   /* ASSEMBLY */
-  double PolyominoAssemblyOutcome(BGenotype& binary_genome, FitnessPhenotypeTable* pt,Phenotype_ID& pid,std::set<interaction_pair>& pid_interactions);
+  double PolyominoAssemblyOutcome(BGenotype& binary_genome, FitnessPhenotypeTable* pt,Phenotype_ID& pid,std::set<InteractionPair>& pid_interactions);
   
 }
 void RandomiseGenotype(BGenotype& genotype);

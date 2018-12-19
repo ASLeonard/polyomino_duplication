@@ -147,7 +147,7 @@ uint32_t Evo(uint8_t ttype) {
     RandomiseGenotype(species.genotype);
   }
   
-  std::set<interaction_pair> pid_interactions;  
+  std::set<InteractionPair> pid_interactions;  
   for(uint32_t generation=0;generation<simulation_params::generation_limit;++generation) { /*! MAIN EVOLUTION LOOP */
     uint16_t nth_genotype=0;
     for(PopulationGenotype& evolving_genotype : evolving_population) { /*! GENOTYPE LOOP */
@@ -173,7 +173,7 @@ uint32_t Evo(uint8_t ttype) {
 
 
 void DimerModelTable(FitnessPhenotypeTable* pt) {
-  model_params::FIXED_TABLE=true;
+  pt->FIXED_TABLE=true;
   pt->known_phenotypes[1].emplace_back(Phenotype{1,1, {1}});
   pt->known_phenotypes[2].emplace_back(Phenotype{2,1, {1,3}});
   pt->phenotype_fitnesses[1].emplace_back(1);
@@ -225,8 +225,8 @@ void SetRuntimeConfigurations(int argc, char* argv[]) {
       case 'N': simulation_params::n_tiles=std::stoi(argv[arg+1]);break;
       case 'P': simulation_params::population_size=std::stoi(argv[arg+1]);break;
       case 'K': simulation_params::generation_limit=std::stoi(argv[arg+1]);break;
-      case 'B': model_params::phenotype_builds=std::stoi(argv[arg+1]);break;
-      case 'X': model_params::UND_threshold=std::stod(argv[arg+1]);break;
+      case 'B': FitnessPhenotypeTable::phenotype_builds=std::stoi(argv[arg+1]);break;
+      case 'X': FitnessPhenotypeTable::UND_threshold=std::stod(argv[arg+1]);break;
 
         /*! run configurations */
       case 'D': simulation_params::independent_trials=std::stoi(argv[arg+1]);break;
@@ -240,7 +240,7 @@ void SetRuntimeConfigurations(int argc, char* argv[]) {
       case 'Y':break;// simulation_params::binding_threshold=std::stod(argv[arg+1]);break;
       case 'T':break;// simulation_params::temperature=std::stod(argv[arg+1]);break;
         
-      case 'S': simulation_params::fixed_seed=std::stoi(argv[arg+1])>0;break;
+
       case 'A': simulation_params::model_type=std::stoi(argv[arg+1]);break;   
       case 'H': simulation_params::dissociation_time=std::stoi(argv[arg+1]);break;
         

@@ -1,4 +1,4 @@
-#include "duplication.hpp"
+#include "duplication_model.hpp"
 #include <functional>
 
 namespace simulation_params

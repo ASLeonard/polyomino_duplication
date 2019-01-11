@@ -11,6 +11,43 @@ import seaborn as sns
 def loadData(S,fname='Discovs'):
      return [[int(i) for i in line.split()] for line in open('/rscratch/asl47/Discs/{}{:.6f}.BIN'.format(fname,S))]
 
+def loadBinary(S,fname='Discovs',shape=(-1)):
+     return np.fromfile('/rscratch/asl47/Discs/{}{:.6f}.BIN'.format(fname,S),dtype=np.uint8).reshape(shape)
+
+def plotDecors(low,high):
+     #plt.figure()
+     for S in range(low,high+1,2):
+          data=loadBinary(S/32,'Decor',(1+(32-S)//2,-1))
+          #plt.plot()
+          print(S,np.count_nonzero(data,axis=1))
+
+def plotBonds(data):
+     f,ax=plt.subplots()
+
+     
+     deads=[]
+     qq=0
+     counters=0
+     xc=0
+     for run in data:
+          
+          dead_points=[np.min(np.where(run[:,i]>=24)) if np.any(run[:,i]>=24) else -1 for i in range(3) ]
+          deads.append(dead_points)
+          if np.argmax(dead_points)==2:
+               if -1 in dead_points and dead_points[2]>=0:
+                    xc+=1
+                    continue
+               counters+=1
+               #print("wow",dead_points,qq)
+
+               
+          qq+=1
+          continue
+          
+     #return deads
+     ax.plot(range(100),[24]*100,'k:')
+     print("happened ",counters,xc)
+     plt.show(block=False)
      
 def plotDiscovery(l_I):
      def SF_sym(S_stars):
@@ -54,7 +91,7 @@ def plotDecay():
      data=[np.zeros((int(ceil(len(s_hats)/2)),int(s_hats[0]*32))),np.zeros((len(s_hats),int(s_hats[0]*64)))]
 
      for i,s in enumerate(s_hats):
-          for j,tds in enumerate(llx(s,'Decays')):
+          for j,tds in enumerate(loadData(s,'Decays')):
                ar=np.array(tds,dtype=np.float)
                ar[ar==0]=np.nan
                if int(s*64)%2==1 and j%2==0: #is faulty symmetric
@@ -71,9 +108,10 @@ def plotDecay():
 
      for i,s in enumerate(s_hats):
           ax1.scatter(i,0 if s==1. else 64*(1-RandomWalk(64,0,0,s,1)),marker='D',color='r')
+          if i%2==0:
+               ax1.scatter(i,0 if s==1. else 64*(1-RandomWalk(32,0,0,s,1)),marker='X',color='c')
           if s==1.:
                exsp=[1]
-               
           else:
                exsp=expected_steps_fast(__matrix(64,s).T)
           max_g=64-int(s*64)
@@ -89,9 +127,9 @@ def plotDecay():
           max_g=32-int(s*32)
           for j,g in enumerate(range(max_g+1)):
                ax2.text(i,max_g-j,int(exsp[j]),color='w' if int(exsp[j])<=5 else 'k',fontsize=8,va='center',ha='center')
+               
      ax1.set_xticks(np.arange(len(s_hats)))
      ax1.set_xticklabels(s_hats,rotation=45)
-
      
 
      ax2.set_xticks(np.arange(len(s_hats[::2])))
@@ -288,71 +326,3 @@ def __getSteadyStates(matrix):
      ve=eigvec.T[np.argmax(eigval)]
      return va,ve/sum(ve)
 
-def good2(a,b):
-     return 1/(1+2*b)*(2*b+2/(a+2)*(1+a*1/(a+2)))
-     
-def good1(a,b):
-     return 2*b/(1+2*b)*good2(a,b) + 1/(1+2*b)*(good2(a,b)/(2+a)+2/(a+2)**2 +2*a/(2+a)**3+a*1/(2+a)**2*good2(a,b)+2*a/(2+a)**3)
-
-def goodStar(a,b):
-     return 1/(a+2)*good1(a,b)*(1+1*a/(2+a)) + (1/(2+a))**2 *good2(a,b) *(1+2*a/(2+a))+2/((2+a)**3)*(1+3*a/(2+a))
-
-def goodSecondSeed(a,b):
-     return 2*b/(2*b+1)*good1(a,b) + 1/(2*b+1)*goodStar(a,b)
-
-def goodFirstSeed(a,b):
-     return 1/(2*a*b+1)*(goodStar(a,b)+2*a*b/(2*a*b+1)/(a+2)*(good1(a,b)+1/(a+2)*(good2(a,b)+2/(a+2))))
-
-def Twelve(a,b):
-     x22=(1-FourOne(a*b,1))*.5
-     full=goodSecondSeed(a,b)*.5+goodFirstSeed(a,b)*.5
-     half=(1-x22*2-goodFirstSeed(a,b))*.5+(1-goodSecondSeed(a,b))*.5
-     return (x22,half,full)
-
-def FourOne(a,seed=None):
-     def seed1():
-          return sum((2*a)**n/(2*a+1)**(n+1) for n in range(3))
-     def seed2():
-          return 1
-     if seed==1:
-          return seed1()
-     elif seed==2:
-          return seed2()
-     else:
-           return .5*seed1()+.5*seed2()
-     
-def calcTransitionParams(evo_strs,transitions,T,S_star):
-     param_dict={}
-
-     if (4,1) in evo_strs:
-          if (4,0) in transitions[(4,1)]:
-               param_dict[(1,(4,1),(4,0))]=(evo_strs[(4,0)][(2,2)][-1]/S_star)**T
-               param_dict[(0,(4,1),(4,0))]=(evo_strs[(4,1)][(4,3)][0]/evo_strs[(4,1)][(3,3)][0])**T
-          if (2,0) in transitions[(4,1)]:
-               param_dict[(1,(4,1),(2,0))]=(S_star/evo_strs[(2,0)][(1,1)][-1])**T
-               param_dict[(0,(4,1),(2,0))]=(evo_strs[(4,1)][(4,4)][0]/evo_strs[(4,1)][(3,4)][0])**T
-
-     if (16,0) in evo_strs:
-          if (4,1) in transitions[(16,0)]:
-               param_dict[(1,(16,0),(4,1))]=(evo_strs[(4,1)][(4,4)][-1]/evo_strs[(4,1)][(3,3)][-1])**T
-               param_dict[(0,(16,0),(4,1))]=(evo_strs[(16,0)][(4,2)][0]/evo_strs[(16,0)][(3,2)][0])**T
-               param_dict[(0,(16,0),(16,0))]=(evo_strs[(16,0)][(4,2)][-1]/evo_strs[(16,0)][(3,2)][-1])**T
-          if (8,0) in transitions[(16,0)]:
-               param_dict[(1,(16,0),(8,0))]=(S_star/evo_strs[(8,0)][(1,1)][-1])**T
-               param_dict[(0,(16,0),(8,0))]=(evo_strs[(16,0)][(4,4)][0]/evo_strs[(16,0)][(3,4)][0])**T
-               param_dict[(0,(16,0),(16,0))]=(evo_strs[(16,0)][(4,4)][-1]/evo_strs[(16,0)][(3,4)][-1])**T
-          
-          
-     if (12,0) in evo_strs:
-          if (4,1) in transitions[(12,0)]:
-               param_dict[(1,(12,0),(4,1))]=((evo_strs[(4,1)][(4,4)][-1]/S_star)**T,(S_star/evo_strs[(4,1)][(3,3)][-1])**T)
-               param_dict[(0,(12,0),(4,1))]=((evo_strs[(12,0)][(4,2)][0]/evo_strs[(12,0)][(2,2)][0])**T,(evo_strs[(12,0)][(2,2)][0]/evo_strs[(12,0)][(3,2)][0])**T)
-               param_dict[(0,(12,0),(12,0))]=((evo_strs[(12,0)][(4,2)][-1]/evo_strs[(12,0)][(2,2)][-1])**T,(evo_strs[(12,0)][(2,2)][-1]/evo_strs[(12,0)][(3,2)][-1])**T)
-          if (8,0) in transitions[(12,0)]:
-               param_dict[(1,(12,0),(8,0))]=((S_star/evo_strs[(8,0)][(2,2)][-1])**T,(evo_strs[(8,0)][(2,2)][-1]/evo_strs[(8,0)][(1,2)][-1])**T)
-               param_dict[(0,(12,0),(8,0))]=((evo_strs[(12,0)][(4,4)][0]/evo_strs[(12,0)][(2,4)][0])**T,(evo_strs[(12,0)][(2,4)][0]/evo_strs[(12,0)][(3,4)][0])**T)
-               param_dict[(0,(12,0),(12,0))]=((evo_strs[(12,0)][(4,4)][-1]/evo_strs[(12,0)][(2,4)][-1])**T,(evo_strs[(12,0)][(2,4)][-1]/evo_strs[(12,0)][(3,4)][-1])**T)
-               
-     
-     
-     return param_dict

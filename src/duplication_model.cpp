@@ -8,77 +8,43 @@ namespace simulation_params
   double temperature=0,binding_threshold=1,mu_prob=1;
 }
 
-thread_local std::mt19937 RNG_Engine(std::random_device{}());
-
-namespace {
-
-  thread_local auto interface_filler = std::bind(std::uniform_int_distribution<interface_type>(), std::ref(RNG_Engine));
-
-  static auto initialize_PAR() {
-    std::ifstream fin("configs.ini");
-    char param_name;
-    std::string param_value;
-    fin >> param_name;
-    Phenotype::FREE_POLYOMINO=static_cast<uint8_t>(param_name-'0');
-    fin >> param_name;
-    Phenotype::DETERMINISM_LEVEL=static_cast<uint8_t>(param_name-'0');
-    while ( fin >> param_name >> param_value ) {
-      switch(param_name) {
-      case 'M': simulation_params::mu_prob=std::stod(param_value);break;
-      case 'Y': simulation_params::binding_threshold=std::stod(param_value);break;
-      case 'T': simulation_params::temperature=std::stod(param_value);break;
-      default: break;
-      }
-    }
-    simulation_params::samming_threshold=static_cast<uint8_t>(interface_size*(1-simulation_params::binding_threshold));
-    std::array<double,interface_size+1> bps{};
-    for(size_t i=0;i<=simulation_params::samming_threshold;++i)
-      bps[i]=std::pow(1-double(i)/interface_size,simulation_params::temperature);
-
-    
-   
-    return std::make_pair(bps,std::bernoulli_distribution(simulation_params::mu_prob/(interface_size*4*simulation_params::n_tiles)));
-  }
-  
+void InterfaceAssembly::SetBindingStrengths() {
+  simulation_params::samming_threshold=static_cast<uint8_t>(interface_size*(1-simulation_params::binding_threshold));
+  for(size_t i=0;i<=simulation_params::samming_threshold;++i)
+      binding_probabilities[i]=std::pow(1-double(i)/interface_size,simulation_params::temperature);
 }
 
-auto [binding_probabilities, bern_dist] = initialize_PAR();
-
-void PrintBindingStrengths() {
+void InterfaceAssembly::PrintBindingStrengths() {
   for(auto b : binding_probabilities)
     std::cout<<b<<std::endl;
-}      
-
-
-
-//std::normal_distribution<double> normal_dist(0,1);
-
+}    
 
 void InterfaceAssembly::Mutation(BGenotype& genotype) {
   for(interface_type& base : genotype)
     for(uint8_t nth_bit=0; nth_bit<interface_size; ++nth_bit)
-      if(bern_dist(RNG_Engine))
-        base ^= (interface_type(1) << nth_bit);
+      if(std::bernoulli_distribution(.1)(RNG_Engine))
+        base.flip(nth_bit);
 }
 
 double InterfaceAssembly::InteractionMatrix(const interface_type face_1,const interface_type face_2) {
   return binding_probabilities[interface_model::SammingDistance(face_1,face_2)];
 }
 
-
 namespace interface_model
 {
   interface_type ReverseBits(interface_type v) {
-    interface_type s(interface_size), mask= ~0;
-    while ((s >>= 1) > 0) {
-      mask ^= (mask << s);
-      v = ((v >> s) & mask) | ((v << s) & ~mask);
+    interface_type s;
+    for(size_t i = 0; i < interface_size/2; ++i) {
+        bool t = v[i];
+        s[i] = v[interface_size-i-1];
+        s[interface_size-i-1] = t;
     }
-    return v;
-  }
+    return s;
+}
+  
 
   uint8_t SammingDistance(interface_type face1,interface_type face2) {
-    return __builtin_popcountll(face1 ^ ReverseBits(~face2));
+    return (face1 ^ ReverseBits(~face2)).count();
   }
 
   double PolyominoAssemblyOutcome(BGenotype& binary_genome,FitnessPhenotypeTable* pt,Phenotype_ID& pid,std::set<InteractionPair>& pid_interactions) {
@@ -131,7 +97,7 @@ namespace interface_model
 
 void RandomiseGenotype(BGenotype& genotype) {
   do {
-    std::generate(genotype.begin(),genotype.end(),interface_filler);
+    std::generate(genotype.begin(),genotype.end(),InterfaceAssembly::GenRandomSite);
   }while(!InterfaceAssembly::GetActiveInterfaces(genotype).empty());
 }
 
@@ -147,7 +113,7 @@ BGenotype GenerateTargetGraph(std::map<uint8_t,std::vector<uint8_t>> edge_map,ui
   do {
     RandomiseGenotype(graph); 
     for(auto edge : edge_map) {
-      graph[edge.first]=interface_filler();
+      graph[edge.first]=InterfaceAssembly::GenRandomSite();
       for(uint8_t connector : edge.second) {
         /*!make perfectly self-interacting*/
         if(edge.first!=connector)
@@ -181,7 +147,7 @@ void EnsureNeutralDisconnections(BGenotype& genotype) {
   else {
     if(new_edges!=edges) { //disjointed with internal edges on both
       do {
-        std::generate(genotype.begin()+4,genotype.end(),interface_filler);
+        std::generate(genotype.begin()+4,genotype.end(),InterfaceAssembly::GenRandomSite);
       }while(InterfaceAssembly::GetActiveInterfaces(genotype).size()!=new_edges);
       //established disjointed tile with internal tile on first, neutral 2nd tile
       do {

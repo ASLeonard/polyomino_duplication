@@ -11,6 +11,23 @@ namespace simulation_params {
   double fitness_factor=1;
 }
 
+void EvRu() {
+  const uint32_t N_runs=simulation_params::independent_trials;
+  std::ofstream f_out(file_base_path+"Decor"+std::to_string(simulation_params::binding_threshold)+".BIN", std::ios::binary);
+  std::vector<uint8_t> res(N_runs);
+  for(uint8_t gap=0; gap<= simulation_params::samming_threshold/2;gap++) {
+#pragma omp parallel for schedule(dynamic) 
+    for(uint32_t r=0;r < N_runs;++r) {
+      do {
+        res[r]= DEvo3(gap);
+      }while(res[r]==2);
+    }    
+    BinaryWriter(f_out,res);
+  }
+}
+  
+
+
 void EvolutionRunner() {
   const uint32_t N_runs=simulation_params::independent_trials;
   std::ofstream f_out(file_base_path+"Discovs"+std::to_string(simulation_params::binding_threshold)+".BIN");
@@ -62,27 +79,25 @@ void EvolutionRunner2() {
 }
 
 uint32_t Evo1() {
-  std::uniform_int_distribution<interface_type> fil;
-  uint64_t geno=fil(RNG_Engine);
-  std::uniform_int_distribution<uint8_t> dis(0, 63);
+  interface_type geno=InterfaceAssembly::GenRandomSite();
+  std::uniform_int_distribution<uint8_t> dis(0, interface_size-1);
   for(uint32_t generation=1;generation<=simulation_params::generation_limit;++generation) {
-    geno^= (interface_type(1) << dis(RNG_Engine));
+    geno.flip(dis(RNG_Engine));
     if(interface_model::SammingDistance(geno,geno)<=simulation_params::samming_threshold)
       return generation;
   }
   return 0;
 }
 uint32_t Evo2() {
-  std::uniform_int_distribution<interface_type> fil;
-  uint64_t geno1,geno2;
+  interface_type  geno1,geno2;
   do {
-    geno1=fil(RNG_Engine);
-    geno2=fil(RNG_Engine);
+    geno1=InterfaceAssembly::GenRandomSite();
+    geno2=InterfaceAssembly::GenRandomSite();
   }while(interface_model::SammingDistance(geno1,geno2)<=simulation_params::samming_threshold);
 
-  std::uniform_int_distribution<uint8_t> dis(0, 63);
+  std::uniform_int_distribution<uint8_t> dis(0, interface_size-1);
   for(uint32_t generation=1;generation<=simulation_params::generation_limit;++generation) {
-    geno1^= (interface_type(1) << dis(RNG_Engine));
+    geno1.flip(dis(RNG_Engine));
     if(interface_model::SammingDistance(geno1,geno2)<=simulation_params::samming_threshold)
       return generation;
   }
@@ -90,19 +105,21 @@ uint32_t Evo2() {
 }
 
 uint32_t DEvo1(uint8_t gap) {
-  std::uniform_int_distribution<interface_type> fil;
-  uint64_t geno=fil(RNG_Engine);
-  geno=(interface_model::ReverseBits(~(geno>>32))>>32) | ((geno>>32)<<32);
-  std::uniform_int_distribution<uint8_t> dis(0, 63);
-  std::vector<uint8_t> bits(32);
+  interface_type geno=InterfaceAssembly::GenRandomSite();
+  for(size_t n=0;n<interface_size/2;++n)
+    geno[interface_size-n]=~geno[n];
+
+  std::uniform_int_distribution<uint8_t> dis(0, interface_size-1);
+  std::vector<uint8_t> bits(interface_size/2);
   std::iota(bits.begin(),bits.end(),0);
   std::shuffle(bits.begin(),bits.end(),RNG_Engine);
 
   for(uint8_t b=0; b<gap;++b)
-    geno ^=(interface_type(1)<<bits[b]);
+    geno.flip(bits[b]);
+
   
   for(uint32_t generation=1;generation<=simulation_params::generation_limit;++generation) {
-    geno^= (interface_type(1) << dis(RNG_Engine));
+     geno.flip(dis(RNG_Engine));
     if(interface_model::SammingDistance(geno,geno)>simulation_params::samming_threshold)
       return generation;
   }
@@ -110,24 +127,58 @@ uint32_t DEvo1(uint8_t gap) {
 }
 
 uint32_t DEvo2(uint8_t gap) {
-  std::uniform_int_distribution<interface_type> fil;
-  uint64_t geno1=fil(RNG_Engine);
-  uint64_t geno2=interface_model::ReverseBits(~geno1);
 
-  std::uniform_int_distribution<uint8_t> dis(0, 63);
-  std::vector<uint8_t> bits(64);
+  interface_type geno1=InterfaceAssembly::GenRandomSite();
+  interface_type geno2=interface_model::ReverseBits(~geno1);
+
+  std::uniform_int_distribution<uint8_t> dis(0, interface_size-1);
+  std::vector<uint8_t> bits(interface_size);
   std::iota(bits.begin(),bits.end(),0);
   std::shuffle(bits.begin(),bits.end(),RNG_Engine);
 
   for(uint8_t b=0; b<gap;++b)
-    geno1 ^=(interface_type(1)<<bits[b]);
+    geno1.flip(bits[b]);
+
   
   for(uint32_t generation=1;generation<=simulation_params::generation_limit;++generation) {
-    geno1^= (interface_type(1) << dis(RNG_Engine));
+    geno2.flip(dis(RNG_Engine));
     if(interface_model::SammingDistance(geno1,geno2)>simulation_params::samming_threshold)
       return generation;
   }
   return 0;
+}
+
+uint8_t DEvo3(uint8_t gap) {
+
+  interface_type geno1=InterfaceAssembly::GenRandomSite();
+  for(size_t n=0;n<interface_size/2;++n)
+    geno1[interface_size-n]=~geno1[n];
+ 
+  
+  std::uniform_int_distribution<uint8_t> dis(0, interface_size-1);
+  std::vector<uint8_t> bits(interface_size);
+  std::iota(bits.begin(),bits.end(),0);
+  std::shuffle(bits.begin(),bits.end(),RNG_Engine);
+  std::bernoulli_distribution bern(0.5);
+  for(uint8_t b=0; b<gap;++b)
+    geno1.flip(bits[b]);
+  interface_type geno2=geno1;
+  
+
+  for(uint32_t generation=1;generation<=100000;++generation) {
+    if(InterfaceAssembly::GetActiveInterfaces(std::vector<interface_type>{geno1,geno2}).size()==1) {
+      return interface_model::SammingDistance(geno1,geno2)<=simulation_params::samming_threshold;
+    }
+
+    if(bern(RNG_Engine))
+      geno1.flip(dis(RNG_Engine));
+    else
+      geno2.flip(dis(RNG_Engine));
+
+
+  }
+  return 2;
+
 }
 
 
@@ -144,7 +195,7 @@ uint32_t Evo(uint8_t ttype) {
   
   for(auto& species : evolving_population) {
     species.genotype.resize(2);
-    RandomiseGenotype(species.genotype);
+    InterfaceAssembly::RandomiseGenotype(species.genotype);
   }
   
   std::set<InteractionPair> pid_interactions;  
@@ -199,11 +250,14 @@ int main(int argc, char* argv[]) {
   SetRuntimeConfigurations(argc,argv);
   
   switch(run_option) {
+  case 'B':
+    EvRu();
+    break;
   case 'E':
-    EvolutionRunner2();
+    EvolutionRunner();
     break;
   case '?':
-    PrintBindingStrengths();
+    InterfaceAssembly::PrintBindingStrengths();
     break;
   case 'H':
   default:
@@ -236,9 +290,9 @@ void SetRuntimeConfigurations(int argc, char* argv[]) {
         /*! simulation specific */
         
         //DONE IN INIT FILE
-      case 'M':break;// simulation_params::mu_prob=std::stod(argv[arg+1]);break;
-      case 'Y':break;// simulation_params::binding_threshold=std::stod(argv[arg+1]);break;
-      case 'T':break;// simulation_params::temperature=std::stod(argv[arg+1]);break;
+      case 'M': simulation_params::mu_prob=std::stod(argv[arg+1]);break;
+      case 'Y': simulation_params::binding_threshold=std::stod(argv[arg+1]);break;
+      case 'T': simulation_params::temperature=std::stod(argv[arg+1]);break;
         
 
       case 'A': simulation_params::model_type=std::stoi(argv[arg+1]);break;   
@@ -253,6 +307,7 @@ void SetRuntimeConfigurations(int argc, char* argv[]) {
       default: std::cout<<"Unknown Parameter Flag: "<<argv[arg][1]<<std::endl;
       }
     }
+    InterfaceAssembly::SetBindingStrengths();
 
   }
 }

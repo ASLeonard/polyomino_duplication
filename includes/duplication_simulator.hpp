@@ -24,11 +24,16 @@ uint32_t Evo1();
 uint32_t Evo2();
 uint32_t DEvo1(uint8_t gap);
 uint32_t DEvo2(uint8_t gap);
+uint8_t DEvo3(uint8_t gap);
+void EvRu();
 uint32_t Evo(uint8_t ttype); 
 void EvolutionRunner();
 void EvolutionRunner2();
 
-//std::vector<uint16_t> RouletteWheelSelection(std::vector<double>& fitnesses);
-
 void SetRuntimeConfigurations(int argc, char* argv[]);
 
+
+template<typename T, typename A>
+void BinaryWriter(std::ofstream& bfile,const std::vector<T,A>& vec) {
+  bfile.write(reinterpret_cast<const char*>(vec.data()), vec.size()*sizeof(T));
+}

@@ -1,26 +1,43 @@
 #pragma once
 #include <climits>
-
+#include <bitset>
 
 #include "core_genotype.hpp"
 #include "core_phenotype.hpp"
 #include "core_evolution.hpp"
 
-using interface_type = uint64_t;
-constexpr uint8_t interface_size=CHAR_BIT*sizeof(interface_type);
+constexpr uint8_t interface_size=128;
+using interface_type = std::bitset<interface_size>;
+
 using BGenotype = std::vector<interface_type>;
 
+template< size_t size>
+typename std::bitset<size> random_bitset() {
+    typename std::bitset<size> bits;
+    std::bernoulli_distribution d(.5);
+    for(size_t n = 0; n < size; ++n) 
+        bits[n] = d(RNG_Engine);
+    return bits;
+}
+
+
 class InterfaceAssembly : public PolyominoAssembly<InterfaceAssembly> {
+
+  protected:
+  inline static std::array<double,interface_size+1> binding_probabilities{};
   
-public:  
+public:
+
+  inline static thread_local auto GenRandomSite = []() {return random_bitset<interface_size>();};
+  
   static double InteractionMatrix(const interface_type, const interface_type);
   static void Mutation(BGenotype& genotype);
+
+  static void SetBindingStrengths();
+  static void PrintBindingStrengths();
   
 };
 
-
-void PrintBindingStrengths();
-//extern std::normal_distribution<double> normal_dist;
 
 
 namespace simulation_params
@@ -39,7 +56,7 @@ namespace interface_model
   double PolyominoAssemblyOutcome(BGenotype& binary_genome, FitnessPhenotypeTable* pt,Phenotype_ID& pid,std::set<InteractionPair>& pid_interactions);
   
 }
-void RandomiseGenotype(BGenotype& genotype);
+
 
 BGenotype GenerateTargetGraph(std::map<uint8_t,std::vector<uint8_t>> edge_map,uint8_t graph_size);
 void EnsureNeutralDisconnections(BGenotype& genotype);

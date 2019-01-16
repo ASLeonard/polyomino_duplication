@@ -4,16 +4,19 @@
 namespace simulation_params
 {
   extern uint16_t population_size;
-  uint16_t fitness_period=100;
+
   uint32_t generation_limit=100,independent_trials=1,run_offset=0;
-  bool random_initilisation=true;
-  double fitness_jump=2,fitness_rise=10;
+
+  double fitness_jump=2;
+  double mutation_rate=.1;
 }
 
 struct PopulationGenotype {
-  BGenotype genotype;
+  Genotype genotype;
   Phenotype_ID pid;
-  PopulationGenotype(void) : genotype(simulation_params::n_tiles*4), pid{1,0} {};
+  //PopulationGenotype(void) : genotype(simulation_params::n_tiles*4), pid{1,0} {std::generate(genotype.begin(),genotype.end(),[] () {return InterfaceAssembly::GenRandomSite();});};
+  PopulationGenotype(void) : genotype(simulation_params::n_tiles*4), pid{1,0} {RandomiseGenotype(genotype);};
+  
 };
 
 

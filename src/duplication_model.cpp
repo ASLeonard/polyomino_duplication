@@ -19,15 +19,36 @@ void InterfaceAssembly::PrintBindingStrengths() {
     std::cout<<b<<std::endl;
 }    
 
-void InterfaceAssembly::Mutation(BGenotype& genotype) {
+void InterfaceAssembly::Mutation(Genotype& genotype) {
   for(interface_type& base : genotype)
     for(uint8_t nth_bit=0; nth_bit<interface_size; ++nth_bit)
-      if(std::bernoulli_distribution(.1)(RNG_Engine))
+      if(std::bernoulli_distribution(simulation_params::mutation_rate)(RNG_Engine))
         base.flip(nth_bit);
 }
 
 double InterfaceAssembly::InteractionMatrix(const interface_type face_1,const interface_type face_2) {
   return binding_probabilities[interface_model::SammingDistance(face_1,face_2)];
+}
+
+void GenotypeInsertion(Genotype& genotype) {
+  const size_t N_edges = InterfaceAssembly::GetActiveInterfaces(genotype).size();
+  Genotype new_gene(4);
+  genotype.insert(genotype.end(),new_gene.begin(),new_gene.end());
+  do {
+    RandomiseGenotype(new_gene);
+    std::move(new_gene.begin(),new_gene.end(),genotype.rbegin());
+  } while (N_edges != InterfaceAssembly::GetActiveInterfaces(genotype).size());
+
+}
+
+void GenotypeDuplication(Genotype& genotype) {
+  const size_t dup_gene= std::uniform_int_distribution<size_t>(0,genotype.size())(RNG_Engine)/4;
+  genotype.insert(genotype.end(),genotype.begin()+4*dup_gene,genotype.begin()+4*dup_gene+4);
+}
+
+void GenotypeDeletion(Genotype& genotype) {
+  const size_t del_gene= std::uniform_int_distribution<size_t>(0,genotype.size())(RNG_Engine)/4;
+  genotype.erase(genotype.begin()+4*del_gene,genotype.begin()+4*del_gene+4);
 }
 
 namespace interface_model
@@ -40,16 +61,16 @@ namespace interface_model
         s[interface_size-i-1] = t;
     }
     return s;
-}
+  }
   
-
   uint8_t SammingDistance(interface_type face1,interface_type face2) {
     return (face1 ^ ReverseBits(~face2)).count();
   }
 
-  double PolyominoAssemblyOutcome(BGenotype& binary_genome,FitnessPhenotypeTable* pt,Phenotype_ID& pid,std::set<InteractionPair>& pid_interactions) {
+  double PolyominoAssemblyOutcome(Genotype& binary_genome,FitnessPhenotypeTable* pt,Phenotype_ID& pid,std::set<InteractionPair>& pid_interactions) {
     InterfaceAssembly::StripNoncodingGenotype(binary_genome);
     const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(binary_genome);
+
 
     std::vector<int8_t> assembly_information;
     Phenotype phen;
@@ -71,6 +92,7 @@ namespace interface_model
     }
 
     pt->RelabelPhenotypes(Phenotype_IDs,phenotype_interactions);
+
     std::map<Phenotype_ID,uint16_t> ID_counter=pt->PhenotypeFrequencies(Phenotype_IDs);
 
     if(!ID_counter.empty())
@@ -79,7 +101,9 @@ namespace interface_model
       pid=NULL_pid;
 
 
-    pid_interactions=phenotype_interactions[pid];    
+    pid_interactions=phenotype_interactions[pid];
+
+    /*
     if(simulation_params::model_type==1)
       return pt->SingleFitness(pid,ID_counter[pid]);
     if(simulation_params::model_type==2) {
@@ -89,21 +113,22 @@ namespace interface_model
       }
 
     }
+    */
     return pt->GenotypeFitness(ID_counter);
   }
 
 
 }//end interface_model namespace
 
-void RandomiseGenotype(BGenotype& genotype) {
+void RandomiseGenotype(Genotype& genotype) {
   do {
     std::generate(genotype.begin(),genotype.end(),InterfaceAssembly::GenRandomSite);
   }while(!InterfaceAssembly::GetActiveInterfaces(genotype).empty());
 }
 
-BGenotype GenerateTargetGraph(std::map<uint8_t,std::vector<uint8_t>> edge_map,uint8_t graph_size) {
+Genotype GenerateTargetGraph(std::map<uint8_t,std::vector<uint8_t>> edge_map,uint8_t graph_size) {
   const uint8_t total_edges=std::accumulate(edge_map.begin(),edge_map.end(),0,[](uint8_t size,const auto & p1) {return size+p1.second.size();});
-  BGenotype graph(graph_size);
+  Genotype graph(graph_size);
   
   std::uniform_int_distribution<uint8_t> delta_ser(0,simulation_params::samming_threshold);
   std::vector<uint8_t> bits(interface_size);
@@ -123,7 +148,6 @@ BGenotype GenerateTargetGraph(std::map<uint8_t,std::vector<uint8_t>> edge_map,ui
 
         std::shuffle(bits.begin(),bits.end(),RNG_Engine);
         const uint8_t delta_s = delta_ser(RNG_Engine)/((edge.first==connector) ? 2 : 1);
-        //uint8_t delta_s = connector==0? 21:19;
         for(uint8_t b=0; b<delta_s;++b)
           graph[connector] ^=(interface_type(1)<<bits[b]);
       }
@@ -132,8 +156,8 @@ BGenotype GenerateTargetGraph(std::map<uint8_t,std::vector<uint8_t>> edge_map,ui
   return graph;
 }
 
-void EnsureNeutralDisconnections(BGenotype& genotype) {
-  BGenotype temp_genotype(genotype);
+void EnsureNeutralDisconnections(Genotype& genotype) {
+  Genotype temp_genotype(genotype);
   uint8_t edges = InterfaceAssembly::GetActiveInterfaces(temp_genotype).size();
 
   if(edges==0)

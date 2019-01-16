@@ -3,13 +3,15 @@
 
 constexpr bool BINARY_WRITE_FILES=false;
 bool KILL_BACK_MUTATIONS=false;
-const std::string file_base_path="//rscratch//asl47//Discs//";
+const std::string file_base_path="//scratch//asl47//Data_Runs//Bulk_Data//";
 const std::map<Phenotype_ID,uint8_t> phen_stages{{{0,0},0},{{10,0},4},{{1,0},1},{{2,0},2},{{4,0},2},{{4,1},3},{{8,0},3},{{12,0},4},{{16,0},4}};
 
 namespace simulation_params {
   uint16_t population_size=100;
   double fitness_factor=1;
 }
+
+
 
 void EvRu() {
   const uint32_t N_runs=simulation_params::independent_trials;
@@ -28,7 +30,7 @@ void EvRu() {
   
 
 
-void EvolutionRunner() {
+void EvolutionRunnerz() {
   const uint32_t N_runs=simulation_params::independent_trials;
   std::ofstream f_out(file_base_path+"Discovs"+std::to_string(simulation_params::binding_threshold)+".BIN");
 
@@ -183,56 +185,97 @@ uint8_t DEvo3(uint8_t gap) {
 
 
 
-uint32_t Evo(uint8_t ttype) {
-
-
-  FitnessPhenotypeTable pt = FitnessPhenotypeTable();
-  DimerModelTable(&pt);
-  pt.known_phenotypes[2][0].tiling={1,ttype};
-
-  std::vector<double> population_fitnesses(simulation_params::population_size);
-  std::vector<PopulationGenotype> evolving_population(simulation_params::population_size),reproduced_population(simulation_params::population_size);
+void EvolutionRunner() {
+  /*!PYTHON INFORMATION*/
+  const std::string py_exec = "python3 ";
+  const std::string py_loc = "~/Documents/PolyDev/polyomino_interfaces/scripts/interface_analysis.py ";
+  const std::string py_mode="internal "+std::to_string(simulation_params::model_type);
   
-  for(auto& species : evolving_population) {
-    species.genotype.resize(2);
-    InterfaceAssembly::RandomiseGenotype(species.genotype);
+  const std::string py_CALL=py_exec + py_loc + py_mode + " "+std::to_string(BINARY_WRITE_FILES)+" ";
+  const std::string python_params=" "+std::to_string(simulation_params::binding_threshold)+" "+std::to_string(simulation_params::temperature)+" "+std::to_string(simulation_params::mutation_rate)+" "+std::to_string(simulation_params::fitness_factor)+" "+std::to_string(simulation_params::population_size);
+
+  const uint16_t N_runs=simulation_params::independent_trials;
+#pragma omp parallel for schedule(dynamic) 
+  for(uint16_t r=0;r < N_runs;++r) {
+    EvolvePopulation("_Run"+std::to_string(r+simulation_params::run_offset));
+    /*!PYTHON CALL*/
+    //std::system((py_CALL+std::to_string(r)+python_params).c_str());
+    /*!PYTHON CALL*/
+
+    
   }
+}
+
+void EvolvePopulation(std::string run_details) {
+  std::string file_simulation_details=run_details+".txt";
+    
+  std::ofstream fout_strength(file_base_path+"Strengths"+file_simulation_details,std::ios::out);
+  std::ofstream fout_phenotype(file_base_path+"PhenotypeTable"+file_simulation_details,std::ios::out);  
+  std::ofstream fout_selection_history(file_base_path+"Selections"+file_simulation_details,std::ios::out);    
+  std::ofstream fout_phenotype_IDs(file_base_path+"PIDs"+file_simulation_details,std::ios::out );
   
-  std::set<InteractionPair> pid_interactions;  
+  
+  std::vector<double> population_fitnesses(simulation_params::population_size);
+  std::vector<PopulationGenotype> evolving_population(simulation_params::population_size),reproduced_population;
+  reproduced_population.resize(simulation_params::population_size);
+
+  
+  FitnessPhenotypeTable pt = FitnessPhenotypeTable();
+  pt.fit_func=[](double s) {return s*s;};
+
+
+  std::set<InteractionPair> pid_interactions;
+  Genotype assembly_genotype;
+  Phenotype_ID prev_ev;
+
+  
+  
   for(uint32_t generation=0;generation<simulation_params::generation_limit;++generation) { /*! MAIN EVOLUTION LOOP */
+
+
     uint16_t nth_genotype=0;
     for(PopulationGenotype& evolving_genotype : evolving_population) { /*! GENOTYPE LOOP */
-      InterfaceAssembly::Mutation(evolving_genotype.genotype);                       
-      BGenotype assembly_genotype=evolving_genotype.genotype;      
+      
+      InterfaceAssembly::Mutation(evolving_genotype.genotype);
+      
+            
+      //const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(evolving_genotype.genotype);
+
+      assembly_genotype=evolving_genotype.genotype;
+      prev_ev=evolving_genotype.pid;
+
+
       population_fitnesses[nth_genotype]=interface_model::PolyominoAssemblyOutcome(assembly_genotype,&pt,evolving_genotype.pid,pid_interactions);
       ++nth_genotype;
-      if(evolving_genotype.pid.first==2)
-        return generation;
 
+
+
+      for(auto x : pid_interactions)
+        fout_strength<<+x.first<<" "<<+x.second<<" "<<+interface_model::SammingDistance(assembly_genotype[x.first],assembly_genotype[x.second])<<".";
+      fout_strength<<",";
+      fout_phenotype_IDs << +evolving_genotype.pid.first <<" "<<+evolving_genotype.pid.second<<" ";
+      
     } /*! END GENOTYPE LOOP */
 
     /*! SELECTION */
     uint16_t nth_repro=0;
     for(uint16_t selected : RouletteWheelSelection(population_fitnesses)) {
       reproduced_population[nth_repro++]=evolving_population[selected];
+      fout_selection_history<<+selected<<" ";
     }
     evolving_population.swap(reproduced_population);
-  }
-  return simulation_params::generation_limit;
+
+
+
+    fout_selection_history<<"\n";
+    fout_phenotype_IDs<<"\n";
+    fout_strength<<"\n";
+    
+    
+  } /* END EVOLUTION LOOP */
+  pt.PrintTable(fout_phenotype);
+  
 }
-
-
-
-void DimerModelTable(FitnessPhenotypeTable* pt) {
-  pt->FIXED_TABLE=true;
-  pt->known_phenotypes[1].emplace_back(Phenotype{1,1, {1}});
-  pt->known_phenotypes[2].emplace_back(Phenotype{2,1, {1,3}});
-  pt->phenotype_fitnesses[1].emplace_back(1);
-  pt->phenotype_fitnesses[2].emplace_back(2);
-
-}
-
-
 
 /********************/
 /*******!MAIN!*******/
@@ -285,25 +328,20 @@ void SetRuntimeConfigurations(int argc, char* argv[]) {
         /*! run configurations */
       case 'D': simulation_params::independent_trials=std::stoi(argv[arg+1]);break;
       case 'V': simulation_params::run_offset=std::stoi(argv[arg+1]);break;
-      case 'R': simulation_params::random_initilisation=std::stoi(argv[arg+1])>0;break;
 
         /*! simulation specific */
         
         //DONE IN INIT FILE
-      case 'M': simulation_params::mu_prob=std::stod(argv[arg+1]);break;
+      case 'M': simulation_params::mutation_rate=std::stod(argv[arg+1]);break;
       case 'Y': simulation_params::binding_threshold=std::stod(argv[arg+1]);break;
       case 'T': simulation_params::temperature=std::stod(argv[arg+1]);break;
         
 
       case 'A': simulation_params::model_type=std::stoi(argv[arg+1]);break;   
-      case 'H': simulation_params::dissociation_time=std::stoi(argv[arg+1]);break;
         
       case 'F': simulation_params::fitness_factor=std::stod(argv[arg+1]);break;
       case 'J': simulation_params::fitness_jump=std::stod(argv[arg+1]);break;
-        
-      case 'O': simulation_params::fitness_period=std::stod(argv[arg+1]);break;
-      case 'G': simulation_params::fitness_rise=std::stod(argv[arg+1]);break;
-        
+
       default: std::cout<<"Unknown Parameter Flag: "<<argv[arg][1]<<std::endl;
       }
     }

@@ -143,12 +143,12 @@ def plotDecay():
      
      
      
-     
+BASE_PATH=''
 def setBasePath(path,binary_mode):
      if binary_mode:
           default_file='/{}_Run{}.BIN'
      else:
-          default_file='/{}_Y{:.6f}_T{:.6f}_Mu{:.6f}_Gamma{:.6f}_Run{}.txt'
+          default_file='/{}_Run{}.txt'
           
      global BASE_PATH
      

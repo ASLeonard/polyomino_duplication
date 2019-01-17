@@ -3,18 +3,17 @@
 
 namespace simulation_params
 {
-  extern uint16_t population_size;
+  uint16_t population_size=1;
 
   uint32_t generation_limit=100,independent_trials=1,run_offset=0;
 
   double fitness_jump=2;
-  double mutation_rate=.1;
+  
 }
 
 struct PopulationGenotype {
   Genotype genotype;
   Phenotype_ID pid;
-  //PopulationGenotype(void) : genotype(simulation_params::n_tiles*4), pid{1,0} {std::generate(genotype.begin(),genotype.end(),[] () {return InterfaceAssembly::GenRandomSite();});};
   PopulationGenotype(void) : genotype(simulation_params::n_tiles*4), pid{1,0} {RandomiseGenotype(genotype);};
   
 };
@@ -23,7 +22,7 @@ struct PopulationGenotype {
 void DimerModelTable(FitnessPhenotypeTable* pt);
 
 /* Main evolution runners */
-uint32_t Evo1();
+uint32_t Evo1(); 
 uint32_t Evo2();
 uint32_t DEvo1(uint8_t gap);
 uint32_t DEvo2(uint8_t gap);

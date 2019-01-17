@@ -127,7 +127,7 @@ class EvoData(object):
           self.T=T
           self.mu=mu
           self.gamma=gamma
-          self.N_runs,self.transitions,self.jumps,self.evo_strs,self.evo_samps=data
+          self.N_runs,self.transitions=data
           
      def __repr__(self):
           return r'Data struct for S*={:.3f},T={:.3g},mu={:.2g},gamma={:.2g}'.format(self.S_star,self.T,self.mu,self.gamma)

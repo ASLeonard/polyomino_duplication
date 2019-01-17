@@ -6,7 +6,7 @@
 #include "core_phenotype.hpp"
 #include "core_evolution.hpp"
 
-constexpr uint8_t interface_size=32;
+constexpr uint8_t interface_size=128;
 using interface_type = std::bitset<interface_size>;
 
 using Genotype = std::vector<interface_type>;
@@ -29,10 +29,13 @@ public:
   };
   
   static double InteractionMatrix(const interface_type, const interface_type);
-  static void Mutation(Genotype& genotype);
-
+  static void Mutation(Genotype& genotype, bool duplication, bool insertion, bool deletion);
   static void SetBindingStrengths();
   static void PrintBindingStrengths();
+
+  inline static double temperature=0,binding_threshold=1;
+  inline static double mutation_rate=0,duplication_rate=0,insertion_rate=0,deletion_rate=0;
+  inline static uint8_t samming_threshold=0;
   
 };
 
@@ -40,9 +43,7 @@ public:
 
 namespace simulation_params
 {
-  extern uint8_t model_type,n_tiles,samming_threshold;
-  extern uint16_t dissociation_time;
-  extern double temperature,binding_threshold,mutation_rate;
+  inline uint8_t model_type=1,n_tiles=1;
 }
 
 namespace interface_model
@@ -63,3 +64,6 @@ void EvolvePopulation(std::string run_details);
 Genotype GenerateTargetGraph(std::map<uint8_t,std::vector<uint8_t>> edge_map,uint8_t graph_size);
 void EnsureNeutralDisconnections(Genotype& genotype);
 
+void GenotypeDuplication(Genotype& genotype);
+void GenotypeInsertion(Genotype& genotype);
+void GenotypeDeletion(Genotype& genotype);

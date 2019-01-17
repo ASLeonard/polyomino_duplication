@@ -146,7 +146,7 @@ def plotDecay():
 BASE_PATH=''
 def setBasePath(path,binary_mode):
      if binary_mode:
-          default_file='/{}_Run{}.BIN'
+          default_file='/{}_Run{}.txt'
      else:
           default_file='/{}_Run{}.txt'
           
@@ -187,10 +187,10 @@ def T():
           print(np.where(q==10)[0])
           
 def LSHB(run,pop_size):
-     return np.fromfile('/scratch/asl47/Data_Runs/Bulk_Data/Selections_Run{}.BIN'.format(run),dtype=np.uint16).reshape(-1,pop_size)
+     return np.fromfile('/scratch/asl47/Data_Runs/Bulk_Data/Selections_Run{}.txt'.format(run),dtype=np.uint16).reshape(-1,pop_size)
 
 def LPB(run,pop_size):
-     return np.fromfile('/scratch/asl47/Data_Runs/Bulk_Data/PIDs_Run{}.BIN'.format(run),dtype=np.uint8).reshape(-1,pop_size,2)
+     return np.fromfile('/scratch/asl47/Data_Runs/Bulk_Data/PIDs_Run{}.txt'.format(run),dtype=np.uint8).reshape(-1,pop_size,2)
 
 def LSB(run,pop_size):
      raw_b=np.fromfile('/scratch/asl47/Data_Runs/Bulk_Data/Strengths_Run{}.BIN'.format(run),dtype=np.uint8)
@@ -243,7 +243,7 @@ def LoadStrengthHistory(run,S_star,t,mu,gamma):
      return ObjArray(strengths)
 
 def LoadPhenotypeTable(run):
-     phenotype_table= sorted([[int(i) for i in line.split()] for line in open(BASE_PATH.format('PhenotypeTable',run))],key=lambda z: z[0])
+     phenotype_table= sorted([[int(i) for i in line.split()] for line in open('/scratch/asl47/Data_Runs/Bulk_Data/PhenotypeTable_Run{}.txt'.format(run))],key=lambda z: z[0])
      return {tuple(px[:2]): tuple(px[2:]) for px in phenotype_table}
 
 def LoadAll(run,params,cwd=None):

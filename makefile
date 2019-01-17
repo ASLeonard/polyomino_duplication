@@ -1,7 +1,7 @@
 MAKEFLAGS+="-j $(nproc)"
 
 #Compiler and Linker
-CXX         := g++-8
+CXX         := g++
 
 #The Target Binary Program
 Du_TARGET   := DuplicationEvolution

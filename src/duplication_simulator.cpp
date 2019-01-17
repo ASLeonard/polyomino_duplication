@@ -6,13 +6,8 @@ bool KILL_BACK_MUTATIONS=false;
 const std::string file_base_path="//scratch//asl47//Data_Runs//Bulk_Data//";
 const std::map<Phenotype_ID,uint8_t> phen_stages{{{0,0},0},{{10,0},4},{{1,0},1},{{2,0},2},{{4,0},2},{{4,1},3},{{8,0},3},{{12,0},4},{{16,0},4}};
 
-namespace simulation_params {
-  uint16_t population_size=100;
-  double fitness_factor=1;
-}
 
-
-
+/*
 void EvRu() {
   const uint32_t N_runs=simulation_params::independent_trials;
   std::ofstream f_out(file_base_path+"Decor"+std::to_string(simulation_params::binding_threshold)+".BIN", std::ios::binary);
@@ -182,17 +177,20 @@ uint8_t DEvo3(uint8_t gap) {
   return 2;
 
 }
-
+*/
 
 
 void EvolutionRunner() {
   /*!PYTHON INFORMATION*/
+
+  Phenotype::DETERMINISM_LEVEL=3;
+  KILL_BACK_MUTATIONS=true;
   const std::string py_exec = "python3 ";
-  const std::string py_loc = "~/Documents/PolyDev/polyomino_interfaces/scripts/interface_analysis.py ";
+  const std::string py_loc = "~/Documents/PolyDev/duplication/scripts/interface_analysis.py ";
   const std::string py_mode="internal "+std::to_string(simulation_params::model_type);
   
   const std::string py_CALL=py_exec + py_loc + py_mode + " "+std::to_string(BINARY_WRITE_FILES)+" ";
-  const std::string python_params=" "+std::to_string(simulation_params::binding_threshold)+" "+std::to_string(simulation_params::temperature)+" "+std::to_string(simulation_params::mutation_rate)+" "+std::to_string(simulation_params::fitness_factor)+" "+std::to_string(simulation_params::population_size);
+  const std::string python_params=" "+std::to_string(InterfaceAssembly::binding_threshold)+" "+std::to_string(InterfaceAssembly::temperature)+" "+std::to_string(InterfaceAssembly::mutation_rate)+" "+std::to_string(FitnessPhenotypeTable::fitness_factor)+" "+std::to_string(simulation_params::population_size);
 
   const uint16_t N_runs=simulation_params::independent_trials;
 #pragma omp parallel for schedule(dynamic) 
@@ -226,6 +224,7 @@ void EvolvePopulation(std::string run_details) {
 
   std::set<InteractionPair> pid_interactions;
   Genotype assembly_genotype;
+  std::vector<uint8_t> pIDs(simulation_params::population_size*2);
   Phenotype_ID prev_ev;
 
   
@@ -236,8 +235,7 @@ void EvolvePopulation(std::string run_details) {
     uint16_t nth_genotype=0;
     for(PopulationGenotype& evolving_genotype : evolving_population) { /*! GENOTYPE LOOP */
       
-      InterfaceAssembly::Mutation(evolving_genotype.genotype);
-      
+      InterfaceAssembly::Mutation(evolving_genotype.genotype,1,0,0);
             
       //const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(evolving_genotype.genotype);
 
@@ -246,30 +244,46 @@ void EvolvePopulation(std::string run_details) {
 
 
       population_fitnesses[nth_genotype]=interface_model::PolyominoAssemblyOutcome(assembly_genotype,&pt,evolving_genotype.pid,pid_interactions);
+      if(evolving_genotype.pid.first<prev_ev.first) {
+        evolving_genotype.pid=NULL_pid;
+        population_fitnesses[nth_genotype]=0;
+      }
+
+        
+        
+      pIDs[2*nth_genotype]=evolving_genotype.pid.first;
+      pIDs[2*nth_genotype+1]=evolving_genotype.pid.second;
+
       ++nth_genotype;
+      
 
 
 
-      for(auto x : pid_interactions)
-        fout_strength<<+x.first<<" "<<+x.second<<" "<<+interface_model::SammingDistance(assembly_genotype[x.first],assembly_genotype[x.second])<<".";
-      fout_strength<<",";
-      fout_phenotype_IDs << +evolving_genotype.pid.first <<" "<<+evolving_genotype.pid.second<<" ";
+      //for(auto x : pid_interactions)
+      //  fout_strength<<+x.first<<" "<<+x.second<<" "<<+interface_model::SammingDistance(assembly_genotype[x.first],assembly_genotype[x.second])<<".";
+      //fout_strength<<",";
+      //fout_phenotype_IDs << +evolving_genotype.pid.first <<" "<<+evolving_genotype.pid.second<<" ";
       
     } /*! END GENOTYPE LOOP */
 
+
     /*! SELECTION */
     uint16_t nth_repro=0;
-    for(uint16_t selected : RouletteWheelSelection(population_fitnesses)) {
+    auto reproducing_selection=RouletteWheelSelection(population_fitnesses);
+    for(uint16_t selected : reproducing_selection) {
       reproduced_population[nth_repro++]=evolving_population[selected];
-      fout_selection_history<<+selected<<" ";
+      //fout_selection_history<<+selected<<" ";
     }
     evolving_population.swap(reproduced_population);
+    
+    BinaryWriter(fout_selection_history,reproducing_selection);
+    BinaryWriter(fout_phenotype_IDs,pIDs);
 
 
 
-    fout_selection_history<<"\n";
-    fout_phenotype_IDs<<"\n";
-    fout_strength<<"\n";
+    //fout_selection_history<<"\n";
+    //fout_phenotype_IDs<<"\n";
+    //fout_strength<<"\n";
     
     
   } /* END EVOLUTION LOOP */
@@ -294,7 +308,7 @@ int main(int argc, char* argv[]) {
   
   switch(run_option) {
   case 'B':
-    EvRu();
+    //EvRu();
     break;
   case 'E':
     EvolutionRunner();
@@ -322,25 +336,32 @@ void SetRuntimeConfigurations(int argc, char* argv[]) {
       case 'N': simulation_params::n_tiles=std::stoi(argv[arg+1]);break;
       case 'P': simulation_params::population_size=std::stoi(argv[arg+1]);break;
       case 'K': simulation_params::generation_limit=std::stoi(argv[arg+1]);break;
-      case 'B': FitnessPhenotypeTable::phenotype_builds=std::stoi(argv[arg+1]);break;
-      case 'X': FitnessPhenotypeTable::UND_threshold=std::stod(argv[arg+1]);break;
-
-        /*! run configurations */
       case 'D': simulation_params::independent_trials=std::stoi(argv[arg+1]);break;
       case 'V': simulation_params::run_offset=std::stoi(argv[arg+1]);break;
+      case 'A': simulation_params::model_type=std::stoi(argv[arg+1]);break; 
+        
+      case 'B': FitnessPhenotypeTable::phenotype_builds=std::stoi(argv[arg+1]);break;
+      case 'X': FitnessPhenotypeTable::UND_threshold=std::stod(argv[arg+1]);break;
+      case 'F': FitnessPhenotypeTable::fitness_factor=std::stod(argv[arg+1]);break;
+
+        /*! run configurations */
+      
 
         /*! simulation specific */
         
         //DONE IN INIT FILE
-      case 'M': simulation_params::mutation_rate=std::stod(argv[arg+1]);break;
-      case 'Y': simulation_params::binding_threshold=std::stod(argv[arg+1]);break;
-      case 'T': simulation_params::temperature=std::stod(argv[arg+1]);break;
+      case 'M': InterfaceAssembly::mutation_rate=std::stod(argv[arg+1]);break;
+      case ',': InterfaceAssembly::duplication_rate=std::stod(argv[arg+1]);break;
+      case '.': InterfaceAssembly::insertion_rate=std::stod(argv[arg+1]);break;
+      case '/': InterfaceAssembly::deletion_rate=std::stod(argv[arg+1]);break;
+      case 'Y': InterfaceAssembly::binding_threshold=std::stod(argv[arg+1]);break;
+      case 'T': InterfaceAssembly::temperature=std::stod(argv[arg+1]);break;
         
 
-      case 'A': simulation_params::model_type=std::stoi(argv[arg+1]);break;   
         
-      case 'F': simulation_params::fitness_factor=std::stod(argv[arg+1]);break;
-      case 'J': simulation_params::fitness_jump=std::stod(argv[arg+1]);break;
+        
+      
+        //case 'J': FitnessPhenotypeTable::fitness_jump=std::stod(argv[arg+1]);break;
 
       default: std::cout<<"Unknown Parameter Flag: "<<argv[arg][1]<<std::endl;
       }

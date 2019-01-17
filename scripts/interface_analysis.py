@@ -10,6 +10,7 @@ from collections import defaultdict,Counter
 from itertools import combinations,product,groupby
 from operator import itemgetter
 import math
+import glob
 
 import warnings
 
@@ -27,12 +28,7 @@ def parallelAnalysis(S_star,t,mu,gamma,runs,offset=0,run_code='F'):
      else:
           np.savez_compressed('Mu{}Y{}T{}F{}O{}'.format(mu,S_star,t,gamma,offset),data_struct)
           
-def collateNPZs(S_star,t,mu,gamma,runs):
-     full_data=[]
-     for r in runs:
-          #return np.load(open('Mu{}Y{}T{}F{}O{}.npz'.format(mu,S_star,t,gamma,r), 'rb'))
-          full_data.append(np.load(open('Mu{}Y{}T{}F{}O{}.npz'.format(mu,S_star,t,gamma,r), 'rb'))['arr_0'])
-     return np.asarray(full_data)
+
 
 def collateAnalysis(S_star,t,mu,gamma,runs):
      N_samps=10
@@ -44,31 +40,13 @@ def collateAnalysis(S_star,t,mu,gamma,runs):
                print('missing pickle for run ',r)
      N_runs=0
      full_transition=defaultdict(lambda: defaultdict(int))
-     failed_jumps=defaultdict(lambda: defaultdict(int))
-     raw_evolutions=defaultdict(lambda: defaultdict(list))
-     average_evolutions=defaultdict(dict)
-     sample_evolutions=defaultdict(dict)
-     
-     for str_evo,phen_tran,fails in filter(None,full_data):
+
+     for phen_tran in filter(None,full_data):
           N_runs+=1
           for (phen_in,phen_out),count in phen_tran.items():
                full_transition[phen_in][phen_out]+=count
-          for (phen_in,phen_out),count in fails.items():
-               failed_jumps[phen_in][phen_out]+=count
-          for phen,evo_list in str_evo.items():
-               for (gen,evos) in evo_list:
-                    for (bond_key,new_bond,_,_),strs in evos.items():
-                         raw_evolutions[phen][(bond_key,new_bond)].append(strs)
           
-     for phen in raw_evolutions.keys():
-          samps=None
-          for bond_key,evos in raw_evolutions[phen].items():
-               str_arr=convertRaggedArray(evos)
-               if samps is None or max(samps)>=str_arr.shape[0]:
-                    samps=np.random.choice(str_arr.shape[0],min(str_arr.shape[0],N_samps),replace=False)
-               average_evolutions[phen][bond_key]=np.nanmean(str_arr,axis=0)
-               sample_evolutions[phen][bond_key]=str_arr[samps]
-     return (N_runs,)+tuple(convertDoubleNestedDict(tr) for tr in (full_transition,failed_jumps)) + tuple(dict(res) for res in (average_evolutions,sample_evolutions))
+     return (N_runs,convertDoubleNestedDict(full_transition))
      
 def convertRaggedArray(list_of_lists):
      long_length=sorted([len(lis) for lis in list_of_lists],reverse=True)[len(list_of_lists)//2]
@@ -78,10 +56,17 @@ def convertRaggedArray(list_of_lists):
      return rect_arr
 
 def analysePhylogenetics(run,params,full_pIDs=False):
-     s,p,st,phen_table=LoadAll(run,params)
-     ret_val=KAG(p,s,st)
-     if not ret_val:
+     #s,p,st,phen_table=LoadAll(run,params)
+     s=LSHB(run,params)
+     p=LPB(run,params)
+     phen_table=LoadPhenotypeTable(run)
+     transitions=KAG(p,s)
+     if not transitions:
           return None
+          
+     if full_pIDs:
+          transitions={(phen_table[k[0]],phen_table[k[1]]):cnt for k,cnt in transitions.items()}
+     return transitions
      transitions=ret_val[1]
      failed_transitions=ret_val[2]
      bond_data=treeBondStrengths(ret_val[0],st)
@@ -102,7 +87,7 @@ class Tree(object):
      def __repr__(self):
           return '{},{}'.format(self.pID,self.gen)
           
-def KAG(phenotypes_in,selections,interactions):
+def KAG(phenotypes_in,selections):
      phenotypes=phenotypes_in.copy()
      max_gen,pop_size=selections.shape
      
@@ -116,7 +101,7 @@ def KAG(phenotypes_in,selections,interactions):
                
                new_descendents=[]
                for descendent in descendents:
-                    new_descendents.extend([child for child in np.where(selections[gen_val]==descendent)[0] if (np.array_equal(phenotypes_in[gen_val+1,child],tree.pID) and interactions[gen_val+1,child].bonds==tree.bonds)])
+                    new_descendents.extend([child for child in np.where(selections[gen_val]==descendent)[0] if np.array_equal(phenotypes_in[gen_val+1,child],tree.pID)])
 
                if math.isinf(max_depth):
                     phenotypes[gen_val,descendents]=null_pid
@@ -132,25 +117,14 @@ def KAG(phenotypes_in,selections,interactions):
                phenotypes[gen_val,descendents]=null_pid
                               
      def __addBranch():
-          bond_ref=interactions[g_idx,c_idx].bonds
-          if len(bond_ref)<len(interactions[g_idx-1,p_idx].bonds):
-               return True;
+
           pid_ref=phenotypes_in[g_idx,c_idx]
-          if g_idx:
-               new_bond=list(set(bond_ref)-set(interactions[g_idx-1,p_idx].bonds))
-               transitions[tuple(tuple(_) for _ in (pid_ref,phenotypes_in[g_idx-1,p_idx]))]+=1
-          else:
-               new_bond=bond_ref
-               transitions[tuple(tuple(_) for _ in (pid_ref,init_pid))]+=1
-          try:
-               temp_forest.append((True,Tree(pid_ref,bond_ref,new_bond[0],g_idx,[[c_idx]])))
-          except:
-               print(g_idx,c_idx)
-               print(pid_ref)
-               print(bond_ref)
-               print(interactions[g_idx-1,p_idx].bonds)
-               print(len(new_bond))
-          return True if len(new_bond)==1 else False
+
+          transitions[tuple(tuple(_) for _ in (pid_ref,init_pid if g_idx==0 else phenotypes_in[g_idx-1,p_idx]))]+=1
+
+          temp_forest.append((True,Tree(pid_ref,0,0,g_idx,[[c_idx]])))
+
+          return True 
                
      for C_INDEX in range(pop_size):
           if np.array_equal(phenotypes[max_gen-1,C_INDEX],null_pid):
@@ -160,12 +134,12 @@ def KAG(phenotypes_in,selections,interactions):
           g_idx=max_gen-1
           p_idx=selections[g_idx-1,c_idx]
           pid_ref=phenotypes[max_gen-1,c_idx]
-          bond_ref=interactions[g_idx,c_idx].bonds
+         
           
           while g_idx>0:
                if np.array_equal(phenotypes[g_idx-1,p_idx],null_pid):
                     if np.array_equal(phenotypes_in[g_idx-1,p_idx],pid_ref):
-                         temp_forest.append((False,Tree(pid_ref,bond_ref,(-1,-1),g_idx,[[c_idx]])))
+                         temp_forest.append((False,Tree(pid_ref,0,(-1,-1),g_idx,[[c_idx]])))
                     else:
                          if not __addBranch():
                               return None
@@ -174,12 +148,8 @@ def KAG(phenotypes_in,selections,interactions):
                elif not np.array_equal(phenotypes[g_idx-1,p_idx],pid_ref):
                     if not __addBranch():
                          return None
-                    bond_ref=interactions[g_idx-1,p_idx].bonds
                     pid_ref=phenotypes[g_idx-1,p_idx]
                     
-               elif interactions[g_idx-1,p_idx].bonds !=bond_ref:
-                    temp_forest.append((False,Tree(pid_ref,bond_ref,(-1,-1),g_idx,[[c_idx]])))
-                    bond_ref=interactions[g_idx-1,p_idx].bonds
           
                g_idx-=1
                c_idx=p_idx
@@ -195,31 +165,9 @@ def KAG(phenotypes_in,selections,interactions):
                     forest.append(tree)
 
 
-     
-     #phen_priority={(0,0):0,(1,0):1,(2,0):2,(4,0):2,(4,1):3,(8,0):3,(12,0):4,(16,0):4}
-     #phen_priority={0:0,1:1,2:2,4:2,5:3,8:3,10:4,12:4,16:4}
-     #sum_pid=np.sum(phenotypes_in,axis=2)
-     #max_phens=np.vectorize(phen_priority.__getitem__)(sum_pid)
-     evo_stage=np.vectorize(lambda x: len(x.bonds))(interactions)
+  
 
-     
-     POPULATION_FIXATION=pop_size//10
-     SURVIVAL_DEPTH=4
-     failed_jumps=defaultdict(int)
-     for g_idx,c_idx in product(range(max_gen-2,-1,-1),range(pop_size)):
-          pid_c=phenotypes[g_idx,c_idx]
-          if np.array_equal(pid_c,null_pid):
-               continue
-          
-          pid_d=phenotypes_in[g_idx-1,selections[g_idx-1,c_idx]] if g_idx>0 else init_pid
-          if not np.array_equal(pid_c,pid_d):
-               if np.count_nonzero(evo_stage[g_idx]>=len(interactions[g_idx,c_idx].bonds))>POPULATION_FIXATION:
-                    continue
-               
-               if __growDescendentTree(Tree(pid_c,interactions[g_idx,c_idx].bonds,(-1,-1),g_idx,[[c_idx]]),SURVIVAL_DEPTH) is None:
-                    failed_jumps[tuple(tuple(_) for _ in (pid_c,pid_d))]+=1
-
-     return (forest,dict(transitions),dict(failed_jumps))
+     return dict(transitions)
      
 def treeBondStrengths(KAG,interactions):
      bond_data=defaultdict(list)
@@ -257,6 +205,7 @@ def plotPhen2(pss):
      plt.figure()
      refs=list(np.unique(ps))
      c={K:i for i,K in enumerate(refs)}
+     print(c)
      z=np.zeros(ps.shape)
      for i,j in product(range(ps.shape[0]),range(ps.shape[1])):
           z[i,j]=c[tuple(pss[i,j])]
@@ -312,58 +261,7 @@ def allUniqueBonds(bonds):
 
 def writeIt():
      np.savez_compressed('/rscratch/asl47/Pickles/test.npy',[a,b])
-     
-def analyseHomogeneousPopulation(run,params):
-     selections,phenotypes,st,phen_table=LoadAll(run,params)
-     
-     max_gen,pop_size=selections.shape
-     param_trajectory=[]
-     for generation in range(max_gen):
-          params=defaultdict(list)
-          for species in range(pop_size):
-               if np.array_equal(phenotypes[generation,species],null_pid):
-                    continue
-               if len(st[generation,species].bonds)!=3:
-                    continue
-               try:
-                    bonds={getBondType(bond,st[generation,species].bonds):strength for bond,strength in st[generation,species]}
 
-                    params['a'].append((bonds[4]/bonds[2])**t)
-                    params['b'].append((bonds[2]/bonds[3])**t)
-               except:
-                    return None
-          param_trajectory.append([np.mean(params['a']),np.mean(params['b'])])
-     return np.asarray(param_trajectory)
-
-def analyseDimers(run,params):
-     selections,phenotypes,st,phen_table=LoadAll(run,params)
-     
-     max_gen,pop_size=selections.shape
-     param_trajectory=np.zeros((max_gen,3))
-     #print(phenotypes[0])
-     for generation in range(max_gen):
-          params=np.zeros((pop_size,3))
-          #params=defaultdict(list)
-          for species in range(pop_size):
-               if np.array_equal(phenotypes[generation,species],null_pid):
-                    continue
-               #if len(st[generation,species].bonds)!=3:
-               #     continue
-               #print(st[generation,species].bonds)
-               for bond,strength in st[generation,species]:
-                    if bond[0]==bond[1]:
-                         if bond[0]==0:
-                              params[species][0]=strength
-                         else:
-                              params[species][1]=strength
-                    else:
-                         params[species][2]=strength
-
-          params[params == 0] = np.nan
-          with warnings.catch_warnings():
-               warnings.simplefilter("ignore", category=RuntimeWarning)
-               param_trajectory[generation]=np.nanmean(params,axis=0)
-     return param_trajectory
      
                
 def main(argv):
@@ -373,15 +271,14 @@ def main(argv):
           HPC_FLAG=argv[3]=='1'
           run=int(argv[4])
           format_params=tuple(float(i) for i in argv[5:9])
-          run_params=int(argv[9]) if HPC_FLAG else format_params
+          run_params=int(argv[9])# if HPC_FLAG else format_params
           
           if model_type==1 or model_type==0:
                with open('Mu{2}Y{0}T{1}F{3}O{4}.pkl'.format(*format_params+(run,)),'wb') as f:
-                    dump(analysePhylogenetics(run,run_params,model_type==0),f)
-          elif model_type==2:
-               np.savez_compressed('Mu{2}Y{0}T{1}F{3}O{4}'.format(*format_params+(run,)),analyseHomogeneousPopulation(run,run_params))
-          elif model_type==3:
-               np.savez_compressed('Mu{2}Y{0}T{1}F{3}O{4}'.format(*format_params+(run,)),analyseDimers(run,run_params))
+                    dump(analysePhylogenetics(run,run_params,1),f)
+               for used_file in glob.glob('*Run{}*'.format(run)):
+                    os.remove(used_file)
+                    
           else:
                print("hi")
 

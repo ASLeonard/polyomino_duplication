@@ -24,18 +24,18 @@ def parallelAnalysis(S_star,t,mu,gamma,runs,offset=0,run_code='F'):
      data_struct=pool.map(partial(chosen_function, S_star,t,mu,gamma), range(offset,offset+runs)) 
      pool.close()
      if run_code=='F':
-          dump(data_struct, open('Mu{}Y{}T{}F{}O{}.pkl'.format(mu,S_star,t,gamma,offset), 'wb'))
+          dump(data_struct, open('Y{}T{}Mu{}J{}K{}L{}O{}.pkl'.format(mu,S_star,t,gamma,offset), 'wb'))
      else:
           np.savez_compressed('Mu{}Y{}T{}F{}O{}'.format(mu,S_star,t,gamma,offset),data_struct)
           
 
 
-def collateAnalysis(S_star,t,mu,gamma,runs):
+def collateAnalysis(params,runs):
      N_samps=10
      full_data=[]
      for r in runs:
           try:
-               full_data.append(load(open('Mu{}Y{}T{}F{}O{}.pkl'.format(mu,S_star,t,gamma,r), 'rb')))
+               full_data.append(load(open('Y{}T{}Mu{}J{}K{}L{}O{}.pkl'.format(*params+(r,)), 'rb')))
           except:
                print('missing pickle for run ',r)
      N_runs=0
@@ -162,10 +162,7 @@ def KAG(phenotypes_in,selections):
                (alive,tree)=temp_forest.pop()
                __growDescendentTree(tree)
                if alive:
-                    forest.append(tree)
-
-
-  
+                    forest.append(tree)  
 
      return dict(transitions)
      
@@ -270,11 +267,11 @@ def main(argv):
           
           HPC_FLAG=argv[3]=='1'
           run=int(argv[4])
-          format_params=tuple(float(i) for i in argv[5:9])
-          run_params=int(argv[9])# if HPC_FLAG else format_params
+          format_params=tuple(float(i) for i in argv[5:11])
+          run_params=int(argv[11])# if HPC_FLAG else format_params
           
           if model_type==1 or model_type==0:
-               with open('Mu{2}Y{0}T{1}F{3}O{4}.pkl'.format(*format_params+(run,)),'wb') as f:
+               with open('Y{}T{}Mu{}J{}K{}L{}O{}.pkl'.format(*format_params+(run,)),'wb') as f:
                     dump(analysePhylogenetics(run,run_params,1),f)
                for used_file in glob.glob('*Run{}*'.format(run)):
                     os.remove(used_file)
@@ -283,14 +280,12 @@ def main(argv):
                print("hi")
 
      elif argv[1]=='external':
-          format_params=tuple(float(i) for i in argv[3:7])
-          file_pth='/rscratch/asl47/Pickles/Y{}T{}Mu{}F{}'.format(*format_params)
-          run_gen=range(int(argv[7]))
+          format_params=tuple(float(i) for i in argv[3:9])
+          file_pth='/rscratch/asl47/Pickles/Y{}T{}Mu{}J{}K{}L{}'.format(*format_params)
+          run_gen=range(int(argv[9]))
           if model_type==1 or model_type==0:
                with open(file_pth+'.pkl', 'wb') as f:
-                    dump(collateAnalysis(*format_params,runs=run_gen), f)
-          elif model_type==2 or model_type==3:
-               np.savez_compressed(file_pth,collateNPZs(*format_params,runs=run_gen))
+                    dump(collateAnalysis(format_params,runs=run_gen), f)
           else:
                print("hi")
      else:

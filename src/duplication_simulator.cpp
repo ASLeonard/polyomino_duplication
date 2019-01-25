@@ -190,14 +190,14 @@ void EvolutionRunner() {
   const std::string py_mode="internal "+std::to_string(simulation_params::model_type);
   
   const std::string py_CALL=py_exec + py_loc + py_mode + " "+std::to_string(BINARY_WRITE_FILES)+" ";
-  const std::string python_params=" "+std::to_string(InterfaceAssembly::binding_threshold)+" "+std::to_string(InterfaceAssembly::temperature)+" "+std::to_string(InterfaceAssembly::mutation_rate)+" "+std::to_string(FitnessPhenotypeTable::fitness_factor)+" "+std::to_string(simulation_params::population_size);
+  const std::string python_params=" "+std::to_string(InterfaceAssembly::binding_threshold)+" "+std::to_string(InterfaceAssembly::temperature)+" "+std::to_string(InterfaceAssembly::mutation_rate)+" "+std::to_string(InterfaceAssembly::duplication_rate)+" "+std::to_string(InterfaceAssembly::insertion_rate)+" "+std::to_string(InterfaceAssembly::deletion_rate)+" "+std::to_string(simulation_params::population_size);
 
   const uint16_t N_runs=simulation_params::independent_trials;
 #pragma omp parallel for schedule(dynamic) 
   for(uint16_t r=0;r < N_runs;++r) {
     EvolvePopulation("_Run"+std::to_string(r+simulation_params::run_offset));
     /*!PYTHON CALL*/
-    //std::system((py_CALL+std::to_string(r)+python_params).c_str());
+    std::system((py_CALL+std::to_string(r)+python_params).c_str());
     /*!PYTHON CALL*/
 
     
@@ -208,7 +208,7 @@ void EvolvePopulation(std::string run_details) {
   std::string file_simulation_details=run_details+".txt";
     
   std::ofstream fout_strength(file_base_path+"Strengths"+file_simulation_details,std::ios::out);
-  std::ofstream fout_phenotype(file_base_path+"PhenotypeTable"+file_simulation_details,std::ios::out);  
+  std::string fname_phenotype(file_base_path+"PhenotypeTable"+file_simulation_details);  
   std::ofstream fout_selection_history(file_base_path+"Selections"+file_simulation_details,std::ios::out);    
   std::ofstream fout_phenotype_IDs(file_base_path+"PIDs"+file_simulation_details,std::ios::out );
   
@@ -220,6 +220,14 @@ void EvolvePopulation(std::string run_details) {
   
   FitnessPhenotypeTable pt = FitnessPhenotypeTable();
   pt.fit_func=[](double s) {return s*s;};
+  pt.known_phenotypes[1].emplace_back(Phenotype(1,1,{1}));
+  pt.known_phenotypes[2].emplace_back(Phenotype(2,1,{1,3}));
+  pt.known_phenotypes[2].emplace_back(Phenotype(2,1,{1,5}));
+  pt.phenotype_fitnesses[1].emplace_back(1);
+  pt.phenotype_fitnesses[2].emplace_back(4);
+  pt.phenotype_fitnesses[2].emplace_back(4);
+  pt.FIXED_TABLE=true;
+  
 
 
   std::set<InteractionPair> pid_interactions;
@@ -235,7 +243,7 @@ void EvolvePopulation(std::string run_details) {
     uint16_t nth_genotype=0;
     for(PopulationGenotype& evolving_genotype : evolving_population) { /*! GENOTYPE LOOP */
       
-      InterfaceAssembly::Mutation(evolving_genotype.genotype,1,0,0);
+      InterfaceAssembly::Mutation(evolving_genotype.genotype,1,1,1);
             
       //const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(evolving_genotype.genotype);
 
@@ -287,7 +295,7 @@ void EvolvePopulation(std::string run_details) {
     
     
   } /* END EVOLUTION LOOP */
-  pt.PrintTable(fout_phenotype);
+  pt.PrintTable(fname_phenotype);
   
 }
 
@@ -335,7 +343,7 @@ void SetRuntimeConfigurations(int argc, char* argv[]) {
         /*! model basics */
       case 'N': simulation_params::n_tiles=std::stoi(argv[arg+1]);break;
       case 'P': simulation_params::population_size=std::stoi(argv[arg+1]);break;
-      case 'K': simulation_params::generation_limit=std::stoi(argv[arg+1]);break;
+      case 'G': simulation_params::generation_limit=std::stoi(argv[arg+1]);break;
       case 'D': simulation_params::independent_trials=std::stoi(argv[arg+1]);break;
       case 'V': simulation_params::run_offset=std::stoi(argv[arg+1]);break;
       case 'A': simulation_params::model_type=std::stoi(argv[arg+1]);break; 
@@ -351,9 +359,9 @@ void SetRuntimeConfigurations(int argc, char* argv[]) {
         
         //DONE IN INIT FILE
       case 'M': InterfaceAssembly::mutation_rate=std::stod(argv[arg+1]);break;
-      case ',': InterfaceAssembly::duplication_rate=std::stod(argv[arg+1]);break;
-      case '.': InterfaceAssembly::insertion_rate=std::stod(argv[arg+1]);break;
-      case '/': InterfaceAssembly::deletion_rate=std::stod(argv[arg+1]);break;
+      case 'J': InterfaceAssembly::duplication_rate=std::stod(argv[arg+1]);break;
+      case 'K': InterfaceAssembly::insertion_rate=std::stod(argv[arg+1]);break;
+      case 'L': InterfaceAssembly::deletion_rate=std::stod(argv[arg+1]);break;
       case 'Y': InterfaceAssembly::binding_threshold=std::stod(argv[arg+1]);break;
       case 'T': InterfaceAssembly::temperature=std::stod(argv[arg+1]);break;
         
@@ -361,7 +369,7 @@ void SetRuntimeConfigurations(int argc, char* argv[]) {
         
         
       
-        //case 'J': FitnessPhenotypeTable::fitness_jump=std::stod(argv[arg+1]);break;
+        //case 'Q': FitnessPhenotypeTable::fitness_jump=std::stod(argv[arg+1]);break;
 
       default: std::cout<<"Unknown Parameter Flag: "<<argv[arg][1]<<std::endl;
       }

@@ -14,16 +14,17 @@ void InterfaceAssembly::PrintBindingStrengths() {
 }    
 
 void InterfaceAssembly::Mutation(Genotype& genotype, bool duplication=false, bool insertion=false, bool deletion=false) {
-  for(interface_type& base : genotype)
-    for(uint8_t nth_bit=0; nth_bit<interface_size; ++nth_bit)
-      if(std::bernoulli_distribution(mutation_rate)(RNG_Engine))
-        base.flip(nth_bit);
   if(duplication && std::bernoulli_distribution(duplication_rate)(RNG_Engine))
     GenotypeDuplication(genotype);
   if(insertion && std::bernoulli_distribution(insertion_rate)(RNG_Engine))
     GenotypeInsertion(genotype);
   if(deletion && std::bernoulli_distribution(deletion_rate)(RNG_Engine))
     GenotypeDeletion(genotype);
+
+  for(interface_type& base : genotype)
+    for(uint8_t nth_bit=0; nth_bit<interface_size; ++nth_bit)
+      if(std::bernoulli_distribution(mutation_rate)(RNG_Engine))
+        base.flip(nth_bit);  
 }
 
 double InterfaceAssembly::InteractionMatrix(const interface_type face_1,const interface_type face_2) {
@@ -47,6 +48,8 @@ void GenotypeDuplication(Genotype& genotype) {
 }
 
 void GenotypeDeletion(Genotype& genotype) {
+  if(genotype.size()<=4)
+    return;
   const size_t del_gene= std::uniform_int_distribution<size_t>(0,genotype.size())(RNG_Engine)/4;
   genotype.erase(genotype.begin()+4*del_gene,genotype.begin()+4*del_gene+4);
 }

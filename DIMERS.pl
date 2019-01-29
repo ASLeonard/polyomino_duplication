@@ -13,6 +13,7 @@ my @structures = <$f_homomers>;
 shift @structures;
 while(my $line = shift @structures) {
     chomp $line;
+    last unless $line =~ /\S/;
     {
       local @ARGV = split(' ', $line, 3);
       splice(@ARGV,1,1);    

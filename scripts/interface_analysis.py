@@ -14,6 +14,9 @@ import glob
 
 import warnings
 
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+
 #GLOBAL PIDS
 null_pid,init_pid=np.array([0,0],dtype=np.uint8),np.array([1,0],dtype=np.uint8)
 
@@ -60,8 +63,10 @@ def analysePhylogenetics(run,params,full_pIDs=False):
      s=LSHB(run,params)
      p=LPB(run,params)
      phen_table=LoadPhenotypeTable(run)
+     phen_table[(2,2)]=(2,1,1,9)
      transitions=KAG(p,s)
      if not transitions:
+          print("Empty run at {}".format(run))
           return None
           
      if full_pIDs:
@@ -196,19 +201,39 @@ def plotBs(a):
                plt.plot(range(1000),j,c[g])
      plt.show(block=False)
          
-def plotPhen2(pss):
-     ps=ObjArray([[tuple(i) for i in row]for row in pss])
+def plotPhen2(pids_raw):
+     pids=ObjArray([[tuple(i) for i in row] for row in pids_raw])
      
-     plt.figure()
-     refs=list(np.unique(ps))
-     c={K:i for i,K in enumerate(refs)}
-     print(c)
-     z=np.zeros(ps.shape)
-     for i,j in product(range(ps.shape[0]),range(ps.shape[1])):
-          z[i,j]=c[tuple(pss[i,j])]
-     plt.pcolormesh(z.T)
-     plt.colorbar()
+     f,ax=plt.subplots()
+     ref_pids=list(np.unique(pids))
+     c={K:i for i,K in enumerate(ref_pids)}
+
+     pop_grid=np.empty(pids.shape).T
+     for i,j in np.ndindex(pids.shape):
+          pop_grid[j,i]=c[pids[i,j]]
+
+     cmap = cm.get_cmap('tab20', len(ref_pids))
+     plt.pcolormesh(pop_grid,cmap=cmap)
+     cbar=plt.colorbar(drawedges=True)
+     tick_locs = (np.arange(len(ref_pids)) + 0.5)*(len(ref_pids)-1)/len(ref_pids)
+     cbar.set_ticks(tick_locs)
+
+     cbar.ax.set_yticklabels(ref_pids, fontsize=14, weight='bold')
      plt.show(block=False)
+     return ax
+
+from matplotlib import collections  as mc
+def add_selection_layer(ax,selections):
+     lines=[]
+     for g_ind, p_ind in np.ndindex(selections.shape):
+          if g_ind==(selections.shape[0]-1):
+               continue
+          lines.append([(g_ind+.5,selections[g_ind,p_ind]+.5),(g_ind+1.5,p_ind+.5)])
+
+     lc = mc.LineCollection(lines, linewidths=.5,linestyle='-',color='k',alpha=0.75)
+     ax.add_collection(lc)
+
+     
      
 def plotPhen(ps):
      plt.figure()
@@ -274,7 +299,8 @@ def main(argv):
                with open('Y{}T{}Mu{}J{}K{}L{}O{}.pkl'.format(*format_params+(run,)),'wb') as f:
                     dump(analysePhylogenetics(run,run_params,1),f)
                for used_file in glob.glob('*Run{}*'.format(run)):
-                    os.remove(used_file)
+                    pass
+                    #os.remove(used_file)
                     
           else:
                print("hi")

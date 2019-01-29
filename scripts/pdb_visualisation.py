@@ -22,23 +22,26 @@ def scrubInput(path,similarity=True):
      for result in glob.glob('/scratch/asl47/PDB/results/*.results'):
           raw=[line.rstrip() for line in open(result)]
           #return raw
-          
-          d={'homomer':bool(raw[0]=='1')}
-          d['id']= result.split('.')[0][-4:]
-          if len(raw)==1:
-               print("Empty ID on {}".format(d['id']))
-               continue
-          if('#' in raw[1]):
-               if similarity:
-                    d['homology']=float(raw[2].split()[-1][:-1])
-               else:
-                    d['homology']=float(raw[1].split()[-1][:-1])
-          if len(raw)>3:
-               #print(raw)
-               try:
-                    d['BSA']=((float(raw[-1].split()[-1])+float(raw[-2].split()[-1]))-float(raw[-3].split()[-1]))/2
-               except:
-                    print(raw)
+          try:
+               d={'homomer':bool(raw[0]=='1')}
+               d['id']= result.split('.')[0][-4:]
+               if len(raw)==1:
+                    print("Empty ID on {}".format(d['id']))
+                    continue
+               if('#' in raw[1]):
+                    if similarity:
+                         d['homology']=float(raw[2].split()[-1][:-1])
+                    else:
+                         d['homology']=float(raw[1].split()[-1][:-1])
+               if len(raw)>3:
+                    #print(raw)
+                    try:
+                         d['BSA']=((float(raw[-1].split()[-1])+float(raw[-2].split()[-1]))-float(raw[-3].split()[-1]))/2
+                    except:
+                         print(raw)
+          except Exception as e:
+               print(e)
+               print(d['id'])
 
           rows_list.append(d)
      return pd.DataFrame(rows_list)

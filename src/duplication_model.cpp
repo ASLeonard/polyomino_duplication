@@ -70,7 +70,7 @@ namespace interface_model
     return (face1 ^ ReverseBits(~face2)).count();
   }
 
-  double PolyominoAssemblyOutcome(Genotype& binary_genome,FitnessPhenotypeTable* pt,Phenotype_ID& pid,std::set<InteractionPair>& pid_interactions) {
+  double PolyominoAssemblyOutcome(Genotype& binary_genome,FitnessPhenotypeTable* pt,Phenotype_ID& pid,std::vector<uint8_t>& homologies) { //std::set<InteractionPair>& pid_interactions __attribute__((unused))) {
     InterfaceAssembly::StripNoncodingGenotype(binary_genome);
     const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(binary_genome);
 
@@ -97,11 +97,44 @@ namespace interface_model
     pt->RelabelPhenotypes(Phenotype_IDs,phenotype_interactions);
     
     std::map<Phenotype_ID,uint16_t> ID_counter=pt->PhenotypeFrequencies(Phenotype_IDs);
+    
+    
+    if(simulation_params::model_type==178) {
+      if(ID_counter.find(Phenotype_ID{2,0})!=ID_counter.end() && ID_counter.find(Phenotype_ID{2,1})!=ID_counter.end())
+        pid=Phenotype_ID{2,2};
+      else
+        pid=std::max_element(ID_counter.begin(),ID_counter.end(),[] (const auto & p1, const auto & p2) {return p1.second < p2.second;})->first;
+      
+      if(ID_counter.find(Phenotype_ID{2,1})!=ID_counter.end()) {
+        for(auto external_interaction : phenotype_interactions[Phenotype_ID{2,1}]) {
+          //auto external_interaction=*phenotype_interactions[Phenotype_ID{2,1}].begin();
+          uint8_t T1=external_interaction.first/4, R1=external_interaction.first%4, T2=external_interaction.second/4, R2=external_interaction.second%4;
+          for(uint8_t faces=0; faces<4; ++faces) {
+            homologies.emplace_back((binary_genome[(T1*4)+(R1+faces)%4]^binary_genome[(T2*4)+(R2+faces)%4]).count());
+          }
+        }
+        /*
+        if(phenotype_interactions[Phenotype_ID{2,1}].size()==1) {
+          int x=1;
+        }
+        else {
+          std::cout<<"hmm "<<phenotype_interactions[Phenotype_ID{2,1}].size()<<"\n";
+          for(auto x : phenotype_interactions[Phenotype_ID{2,1}])
+            std::cout<<+x.first<<" "<<+x.second<<" ";
+          std::cout<<"\n";
+        }
+        */
+      }
+      
+    }
+    else {
+      if(!ID_counter.empty())
+        pid=std::max_element(ID_counter.begin(),ID_counter.end(),[] (const auto & p1, const auto & p2) {return p1.second < p2.second;})->first;
+      else
+        pid=NULL_pid;
+    }
 
-    if(!ID_counter.empty())
-      pid=std::max_element(ID_counter.begin(),ID_counter.end(),[] (const auto & p1, const auto & p2) {return p1.second < p2.second;})->first;
-    else
-      pid=NULL_pid;
+    
     
 
     //pid_interactions=phenotype_interactions[pid];

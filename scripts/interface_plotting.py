@@ -30,8 +30,8 @@ import pandas as pd
 
 def convertTransitionstoDF(data):
      pids={(2,1,1,3):'Hom',(2,1,1,5):'Het'}
-     origins={(2,1,1,3):'Dimer',(2,1,1,5):'Dimer',(1,1,1):'Null'}
-     df = pd.DataFrame(index=['Hom', 'Het'],columns=['Null', 'Dimer'])
+     origins={(2,1,1,3):'Dimer',(2,1,1,5):'Dimer',(1,1,1):'Null',(2,1,1,9):'Mixed'}
+     df = pd.DataFrame(index=['Hom', 'Het'],columns=['Null','Dimer','Mixed'])
 
      for phen,trans in data.transitions.items():
           if phen not in pids:

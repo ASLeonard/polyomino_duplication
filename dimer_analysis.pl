@@ -27,6 +27,23 @@ else {
     system("wget -q \"https://www.rcsb.org/pdb/download/downloadFastaFiles.do\?structureIdList=${pdb_id}&compressionType=uncompressed\" -O ${HOME_DIR}/${pdb_id}.fasta ");
     #print "Extracting pdb\n";	    
     system("gunzip -f $HOME_DIR/${pdb_id}.pdb${BA_id}.gz");
+
+    #PROCESS PDB
+    open (my $pdb_input, "<", "${HOME_DIR}/${pdb_id}.pdb${BA_id}");
+    open (my $pdb_output, ">", "${HOME_DIR}/${pdb_id}_${BA_id}.pdb");
+
+    {
+        #local @ARGV = ($pdb_input);
+        my $line_starts= "MODEL|ENDMDL|ATOM|TER|";
+
+        while(<$pdb_input>){
+            next unless /^MODEL.*|^ENDMDL.*|^ATOM.*|^TER.*/;
+            print $pdb_output $_;
+        }
+        
+       
+    }
+  
 }
 
 open (my $fasta, "<", "${HOME_DIR}/${pdb_id}.fasta");
@@ -42,7 +59,7 @@ try {
             my ($header_info) = /^(.*)\n/; # capture the header
             s/^(.*)\n//;                   # and strip it out
             my $chain_id=substr($header_info,5,1);
-            push @chains, $chain_id;
+            #push @chains, $chain_id;
            
             s/\n//mg;
 
@@ -51,18 +68,40 @@ try {
             close $fasta_chain;
         }
     }
+    open (my $pdb_innx, "<", "${HOME_DIR}/${pdb_id}_${BA_id}.pdb");
+    while (<$pdb_innx>) {
+        next unless /^TER.*/;       
+        my @chain_id = split(' ',$_);
+        if(length($chain_id[2])==3) {
+            
+            push @chains, substr($chain_id[3],0,1);
+        }
+        #print "CHN: " . @chain_id[3] . "\n";
 
+    }
     my $results = "${HOME_DIR}/results/${pdb_id}.results";
     system("echo ${HOMOMER} > ${results}"); 
+    #print "LENGTH " . scalar @chains . "\n";
+    if(scalar @chains != 2)
+    {
+        print "Bad length \n";
+        goto OUTERLOOP;
+        
+    }
+        
+
+
+    
     if($HOMOMER) {
-        if($#chains) { 
+        if($chains[0] ne $chains[1]) { 
             #print "Multi chain homomer\n";
             system("${WATER_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[1]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");
-            system("${FREESASA_EXEC} ${HOME_DIR}/${pdb_id}.pdb${BA_id} --chain-group=${chains[0]}${chains[1]}+${chains[0]}+${chains[1]} | grep Total | tail +2 >> ${results}");   
+            system("${FREESASA_EXEC} ${HOME_DIR}/${pdb_id}.pdb${BA_id} --join-models --chain-group=${chains[0]}${chains[1]}+${chains[0]}+${chains[1]} | grep Total | tail +2 >> ${results}");   
 
         }
         else {
             #print "One chain homomer\n";
+            #print "CH " . $chains[0] . "\n";
             system("${WATER_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");
             system("${FREESASA_EXEC} ${HOME_DIR}/${pdb_id}.pdb${BA_id} --join-models | grep Total >> ${results}");  
             system("${FREESASA_EXEC} ${HOME_DIR}/${pdb_id}.pdb${BA_id} --separate-models | grep Total >> ${results}"); 
@@ -70,13 +109,14 @@ try {
     }
     else {
         #print "Heteromer\n";
-        system("${WATER_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[1]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest > ${results}");
+        system("${WATER_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[1]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");
         system("${FREESASA_EXEC} ${HOME_DIR}/${pdb_id}.pdb${BA_id} --chain-group=${chains[0]}${chains[1]}+${chains[0]}+${chains[1]} | grep Total | tail +2 >> ${results}");   
     }
 } catch {
     warn "ID ${pdb_id} caught error: $_";
 };
 
+OUTERLOOP:
 for my $file_d (grep {/fasta\S/} <${HOME_DIR}/*>) {
     #print "unlinking $file_d\n";
     unlink $file_d;

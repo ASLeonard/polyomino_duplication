@@ -216,13 +216,14 @@ def LoadSelectionHistory(run,S_star,t,mu,gamma):
           selections.append(converted)
      return np.array(selections,np.uint16)
 
-def LoadPIDHistory(run,S_star,t,mu,gamma):
+def LoadPIDHistory(run):
      phenotype_IDs=[]
-     for line in open(BASE_PATH.format('PIDs',S_star,t,mu,gamma,run)):
-          converted=[int(i) for i in line.split()]
-          phenotype_IDs.append(list(zip(*(iter(converted),) * 2)))
+     for line in open('/scratch/asl47/Data_Runs/Bulk_Data/PIDs_Run{}.txt'.format(run)):
+          phenotype_IDs.append([list(zip(*(iter([int(i) for i in grouping.split()]),) * 2)) for grouping in line.split(',')[:-1]])
+          #return converted
+          
 
-     return np.array(phenotype_IDs,dtype=np.uint8)
+     return ObjArray(phenotype_IDs)#np.array(phenotype_IDs,dtype=np.uint8)
 
 def LoadStrengthHistory(run,S_star,t,mu,gamma):
      strengths=[]

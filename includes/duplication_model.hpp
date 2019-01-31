@@ -55,7 +55,7 @@ namespace interface_model
   uint8_t SammingDistance(interface_type face1,interface_type face2);
 
   /* ASSEMBLY */
-  double PolyominoAssemblyOutcome(Genotype& binary_genome, FitnessPhenotypeTable* pt,Phenotype_ID& pid,std::vector<uint8_t>& homologies);//std::set<InteractionPair>& pid_interactions);
+  std::map<Phenotype_ID,uint16_t> PolyominoAssemblyOutcome(Genotype& binary_genome, FitnessPhenotypeTable* pt,std::vector<uint8_t>& homologies);//std::set<InteractionPair>& pid_interactions);
   
 }
 

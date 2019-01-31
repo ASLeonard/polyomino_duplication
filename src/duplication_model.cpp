@@ -97,18 +97,15 @@ namespace interface_model
     return (face1 ^ ReverseBits(~face2)).count();
   }
 
-  double PolyominoAssemblyOutcome(Genotype& binary_genome,FitnessPhenotypeTable* pt,Phenotype_ID& pid,std::vector<uint8_t>& homologies) { //std::set<InteractionPair>& pid_interactions __attribute__((unused))) {
-    if(binary_genome.empty()) {
-      pid=Phenotype_ID{255,1};
-      return 0;
-    }
+  std::map<Phenotype_ID,uint16_t> PolyominoAssemblyOutcome(Genotype& binary_genome,FitnessPhenotypeTable* pt,std::vector<uint8_t>& homologies) { //std::set<InteractionPair>& pid_interactions __attribute__((unused))) {
+    if(binary_genome.empty())
+      return {{UNBOUND_pid,1}};
       
     //InterfaceAssembly::StripNoncodingGenotype(binary_genome);
     Genotype genotype = StripMonomers(binary_genome);
-    if(genotype.empty()) {
-      pid=Phenotype_ID{255,2};
-      return 1;
-    }
+    if(genotype.empty())
+      return {{Phenotype_ID{1,0},1}};
+
     const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(genotype);
 
 
@@ -123,8 +120,7 @@ namespace interface_model
       assembly_information=InterfaceAssembly::AssemblePolyomino(edges,interacting_indices);
       switch(assembly_information.size()) {
       case 0: //unbound
-        pid=UNBOUND_pid;
-  	return 0;
+        return {{UNBOUND_pid,1}};
       case 3: //monomer
         //Phenotype_IDs.emplace_back(Phenotype_ID{1,0});
         //break;
@@ -152,8 +148,18 @@ namespace interface_model
 
     pt->RelabelPhenotypes(Phenotype_IDs,phenotype_interactions);
     
-    std::map<Phenotype_ID,uint16_t> ID_counter=pt->PhenotypeFrequencies(Phenotype_IDs);
-    
+    std::map<Phenotype_ID,uint16_t> ID_counter=pt->PhenotypeFrequencies(Phenotype_IDs,NULL_pid,true);
+    if(ID_counter.find(Phenotype_ID{2,1})!=ID_counter.end()) {
+      for(auto external_interaction : phenotype_interactions[Phenotype_ID{2,1}]) {
+        //auto external_interaction=*phenotype_interactions[Phenotype_ID{2,1}].begin();
+        uint8_t T1=external_interaction.first/4, R1=external_interaction.first%4, T2=external_interaction.second/4, R2=external_interaction.second%4;
+        for(uint8_t faces=0; faces<4; ++faces) {
+          homologies.emplace_back((genotype[(T1*4)+(R1+faces)%4]^genotype[(T2*4)+(R2+faces)%4]).count());
+        }
+      }
+    }
+    return ID_counter;
+    /*
     
     if(simulation_params::model_type==1) {
       if(std::find(Phenotype_IDs.begin(),Phenotype_IDs.end(),Phenotype_ID{2,0})!=Phenotype_IDs.end() && std::find(Phenotype_IDs.begin(),Phenotype_IDs.end(),Phenotype_ID{2,1})!=Phenotype_IDs.end())
@@ -180,6 +186,7 @@ namespace interface_model
           std::cout<<"\n";
         }
         */
+    /*
       }
       
     }
@@ -189,6 +196,7 @@ namespace interface_model
       else
         pid=NULL_pid;
     }
+    */
 
     
     
@@ -206,7 +214,7 @@ namespace interface_model
 
     }
     */
-    return pt->GenotypeFitness(ID_counter);
+    //return pt->GenotypeFitness(ID_counter);
   }
 
 

@@ -213,6 +213,7 @@ void EvolvePopulation(std::string run_details) {
   std::ofstream fout_mutation(file_base_path+"Mutation"+file_simulation_details,std::ios::out); 
   std::ofstream fout_homology(file_base_path+"Homology"+file_simulation_details,std::ios::out); 
   std::ofstream fout_phenotype_IDs(file_base_path+"PIDs"+file_simulation_details,std::ios::out );
+  std::ofstream fout_size(file_base_path+"Size"+file_simulation_details,std::ios::out );
   
   
   std::vector<double> population_fitnesses(simulation_params::population_size);
@@ -222,7 +223,7 @@ void EvolvePopulation(std::string run_details) {
   
   FitnessPhenotypeTable pt = FitnessPhenotypeTable();
   pt.fit_func=[](double s) {return s*s;};
-  if(simulation_params::model_type==1) {
+  if(simulation_params::model_type==17) {
   
     pt.known_phenotypes[1].emplace_back(Phenotype(1,1,{1}));
     pt.known_phenotypes[2].emplace_back(Phenotype(2,1,{1,3}));
@@ -239,6 +240,7 @@ void EvolvePopulation(std::string run_details) {
   //std::set<InteractionPair> pid_interactions;
   Genotype assembly_genotype;
   std::vector<uint8_t> pIDs(simulation_params::population_size*2);
+  //std::vector< std::map<Phenotype_
   Phenotype_ID prev_ev;
 
   
@@ -259,11 +261,22 @@ void EvolvePopulation(std::string run_details) {
       prev_ev=evolving_genotype.pid;
 
       std::vector<uint8_t> homologies;
-      population_fitnesses[nth_genotype]=interface_model::PolyominoAssemblyOutcome(assembly_genotype,&pt,evolving_genotype.pid,homologies);
-      if(false && evolving_genotype.pid.first<prev_ev.first) {
-        evolving_genotype.pid=NULL_pid;
+      auto pid_map=interface_model::PolyominoAssemblyOutcome(assembly_genotype,&pt,homologies);
+      switch(pid_map.begin()->first.first) {
+      case 255:
         population_fitnesses[nth_genotype]=0;
+        break;
+      case 1:
+        population_fitnesses[nth_genotype]=1;
+        break;
+      default:
+        population_fitnesses[nth_genotype]=pt.GenotypeFitness(pid_map);
+
       }
+      for(auto& kv : pid_map)
+        fout_phenotype_IDs<<+kv.first.first<<" "<<+kv.first.second<<" ";
+      fout_phenotype_IDs<<",";
+
       //for(auto h : homologies)
       //  fout_homology<<+h<<" ";
       if(homologies.size())
@@ -271,11 +284,13 @@ void EvolvePopulation(std::string run_details) {
       fout_homology<<",";
 
       fout_mutation<<holder<<" ";
+      fout_size<<StripMonomers(assembly_genotype).size()/4<<" ";
+      
 
         
         
-      pIDs[2*nth_genotype]=evolving_genotype.pid.first;
-      pIDs[2*nth_genotype+1]=evolving_genotype.pid.second;
+      //pIDs[2*nth_genotype]=evolving_genotype.pid.first;
+      //pIDs[2*nth_genotype+1]=evolving_genotype.pid.second;
 
       ++nth_genotype;
       
@@ -300,9 +315,11 @@ void EvolvePopulation(std::string run_details) {
     evolving_population.swap(reproduced_population);
     
     BinaryWriter(fout_selection_history,reproducing_selection);
-    BinaryWriter(fout_phenotype_IDs,pIDs);
+    //BinaryWriter(fout_phenotype_IDs,pIDs);
     fout_mutation<<"\n";
     fout_homology<<"\n";
+    fout_phenotype_IDs<<"\n";
+    fout_size<<"\n";
 
     
     //fout_selection_history<<"\n";

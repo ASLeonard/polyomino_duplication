@@ -13,18 +13,24 @@ void InterfaceAssembly::PrintBindingStrengths() {
     std::cout<<b<<std::endl;
 }    
 
-void InterfaceAssembly::Mutation(Genotype& genotype, bool duplication=false, bool insertion=false, bool deletion=false) {
-  if(duplication && std::bernoulli_distribution(duplication_rate)(RNG_Engine))
+size_t InterfaceAssembly::Mutation(Genotype& genotype, bool duplication=false, bool insertion=false, bool deletion=false) {
+  size_t holder=0;
+  if(duplication && std::bernoulli_distribution(duplication_rate)(RNG_Engine)) {
+    holder+=1;
     GenotypeDuplication(genotype);
+  }
   if(insertion && std::bernoulli_distribution(insertion_rate)(RNG_Engine))
     GenotypeInsertion(genotype);
-  if(deletion && std::bernoulli_distribution(deletion_rate)(RNG_Engine))
+  if(deletion && std::bernoulli_distribution(deletion_rate)(RNG_Engine)) {
+    holder+=2;
     GenotypeDeletion(genotype);
+  }
 
   for(interface_type& base : genotype)
     for(uint8_t nth_bit=0; nth_bit<interface_size; ++nth_bit)
       if(std::bernoulli_distribution(mutation_rate)(RNG_Engine))
-        base.flip(nth_bit);  
+        base.flip(nth_bit);
+  return holder;
 }
 
 double InterfaceAssembly::InteractionMatrix(const interface_type face_1,const interface_type face_2) {
@@ -39,19 +45,40 @@ void GenotypeInsertion(Genotype& genotype) {
     RandomiseGenotype(new_gene);
     std::move(new_gene.begin(),new_gene.end(),genotype.rbegin());
   } while (N_edges != InterfaceAssembly::GetActiveInterfaces(genotype).size());
-
 }
 
-void GenotypeDuplication(Genotype& genotype) {
+size_t GenotypeDuplication(Genotype& genotype) {
   const size_t dup_gene= std::uniform_int_distribution<size_t>(0,genotype.size())(RNG_Engine)/4;
   genotype.insert(genotype.end(),genotype.begin()+4*dup_gene,genotype.begin()+4*dup_gene+4);
+  return dup_gene;
 }
 
-void GenotypeDeletion(Genotype& genotype) {
-  if(genotype.size()<=4)
-    return;
+size_t GenotypeDeletion(Genotype& genotype) {
   const size_t del_gene= std::uniform_int_distribution<size_t>(0,genotype.size())(RNG_Engine)/4;
   genotype.erase(genotype.begin()+4*del_gene,genotype.begin()+4*del_gene+4);
+  return del_gene;
+}
+
+bool IsHomologous(const Genotype& genotype, const uint8_t T1, const uint8_t T2) {
+  uint16_t homology_count=0;
+  for(uint8_t face = 0; face < 4; ++face)
+    homology_count+=(genotype[T1*4+face]^genotype[T2*4+face]).count();
+  return homology_count/(interface_size*4)>simulation_params::homologous_threshold;
+}
+
+Genotype StripMonomers(const Genotype genotype) {
+  std::vector<bool> oligomers(genotype.size()/4);
+  const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(genotype);
+  for(auto& edge : edges) {
+    oligomers[edge.first.first/4]=true;
+    oligomers[edge.first.second/4]=true;
+  }
+  Genotype fresh;
+  for(size_t nth = 0; nth < oligomers.size(); ++nth)
+    if(oligomers[nth])
+      fresh.insert(fresh.end(),genotype.begin()+nth*4,genotype.begin()+nth*4+4);
+  return fresh;
+
 }
 
 namespace interface_model
@@ -71,8 +98,18 @@ namespace interface_model
   }
 
   double PolyominoAssemblyOutcome(Genotype& binary_genome,FitnessPhenotypeTable* pt,Phenotype_ID& pid,std::vector<uint8_t>& homologies) { //std::set<InteractionPair>& pid_interactions __attribute__((unused))) {
-    InterfaceAssembly::StripNoncodingGenotype(binary_genome);
-    const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(binary_genome);
+    if(binary_genome.empty()) {
+      pid=Phenotype_ID{255,1};
+      return 0;
+    }
+      
+    //InterfaceAssembly::StripNoncodingGenotype(binary_genome);
+    Genotype genotype = StripMonomers(binary_genome);
+    if(genotype.empty()) {
+      pid=Phenotype_ID{255,2};
+      return 1;
+    }
+    const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(genotype);
 
 
     std::vector<int8_t> assembly_information;
@@ -84,13 +121,32 @@ namespace interface_model
 
     for(uint16_t nth=0;nth<pt->phenotype_builds;++nth) {
       assembly_information=InterfaceAssembly::AssemblePolyomino(edges,interacting_indices);
+      switch(assembly_information.size()) {
+      case 0: //unbound
+        pid=UNBOUND_pid;
+  	return 0;
+      case 3: //monomer
+        //Phenotype_IDs.emplace_back(Phenotype_ID{1,0});
+        //break;
+        [[fallthrough]]
+      default:
+        phen=GetPhenotypeFromGrid(assembly_information);
+        Phenotype_IDs.emplace_back(pt->GetPhenotypeID(phen));
+        phenotype_interactions[Phenotype_IDs.back()].insert(interacting_indices.begin(),interacting_indices.end());
+      }
+      /*
       if(assembly_information.size()>0) {
         phen=GetPhenotypeFromGrid(assembly_information);
         Phenotype_IDs.emplace_back(pt->GetPhenotypeID(phen));
         phenotype_interactions[Phenotype_IDs.back()].insert(interacting_indices.begin(),interacting_indices.end());
       }
-      else
-        Phenotype_IDs.emplace_back(0,0);
+      else {
+        pid=UNBOUND_pid;
+  	return 0;
+	//Phenotype_IDs.emplace_back(0,0);
+      }
+      */
+        
       interacting_indices.clear();
     }
 
@@ -99,8 +155,8 @@ namespace interface_model
     std::map<Phenotype_ID,uint16_t> ID_counter=pt->PhenotypeFrequencies(Phenotype_IDs);
     
     
-    if(simulation_params::model_type==178) {
-      if(ID_counter.find(Phenotype_ID{2,0})!=ID_counter.end() && ID_counter.find(Phenotype_ID{2,1})!=ID_counter.end())
+    if(simulation_params::model_type==1) {
+      if(std::find(Phenotype_IDs.begin(),Phenotype_IDs.end(),Phenotype_ID{2,0})!=Phenotype_IDs.end() && std::find(Phenotype_IDs.begin(),Phenotype_IDs.end(),Phenotype_ID{2,1})!=Phenotype_IDs.end())
         pid=Phenotype_ID{2,2};
       else
         pid=std::max_element(ID_counter.begin(),ID_counter.end(),[] (const auto & p1, const auto & p2) {return p1.second < p2.second;})->first;
@@ -110,7 +166,7 @@ namespace interface_model
           //auto external_interaction=*phenotype_interactions[Phenotype_ID{2,1}].begin();
           uint8_t T1=external_interaction.first/4, R1=external_interaction.first%4, T2=external_interaction.second/4, R2=external_interaction.second%4;
           for(uint8_t faces=0; faces<4; ++faces) {
-            homologies.emplace_back((binary_genome[(T1*4)+(R1+faces)%4]^binary_genome[(T2*4)+(R2+faces)%4]).count());
+            homologies.emplace_back((genotype[(T1*4)+(R1+faces)%4]^genotype[(T2*4)+(R2+faces)%4]).count());
           }
         }
         /*

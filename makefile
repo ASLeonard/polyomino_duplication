@@ -24,7 +24,7 @@ CXXFLAGS    := -std=gnu++17 -Wall -Wextra -pedantic -pipe -march=haswell -flto -
 ifndef DEBUG
 CXXFLAGS += -O3 -fopenmp
 else
-CXXFLAGS += -pg
+CXXFLAGS += -pg -ggdb
 endif
 
 INC         := -I$(INCDIR) -I$(LIBDIR)/$(INCDIR)

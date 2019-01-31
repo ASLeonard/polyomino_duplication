@@ -72,14 +72,17 @@ try {
     while (<$pdb_innx>) {
         next unless /^TER.*/;       
         my @chain_id = split(' ',$_);
-        if(length($chain_id[2])==3) {
-            
+	my $chain_id_length = $chain_id[4];
+
+	$chain_id_length =~ s/\D//g;
+
+        if(length($chain_id[2])==3 && $chain_id_length>20) {
             push @chains, substr($chain_id[3],0,1);
         }
         #print "CHN: " . @chain_id[3] . "\n";
 
     }
-    my $results = "${HOME_DIR}/results/${pdb_id}.results";
+    my $results = "${HOME_DIR}/results/${pdb_id}_${BA_id}.results";
     system("echo ${HOMOMER} > ${results}"); 
     #print "LENGTH " . scalar @chains . "\n";
     if(scalar @chains != 2)

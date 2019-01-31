@@ -29,7 +29,7 @@ public:
   };
   
   static double InteractionMatrix(const interface_type, const interface_type);
-  static void Mutation(Genotype& genotype, bool duplication, bool insertion, bool deletion);
+  static size_t Mutation(Genotype& genotype, bool duplication, bool insertion, bool deletion);
   static void SetBindingStrengths();
   static void PrintBindingStrengths();
 
@@ -40,11 +40,14 @@ public:
 };
 
 
-
+Genotype StripMonomers(const Genotype genotype);
 namespace simulation_params
 {
   inline uint8_t model_type=1,n_tiles=1;
+  inline double homologous_threshold=.1;
 }
+
+bool IsHomologous(const Genotype& genotype, const uint8_t T1, const uint8_t T2);
 
 namespace interface_model
 {   
@@ -64,6 +67,6 @@ void EvolvePopulation(std::string run_details);
 Genotype GenerateTargetGraph(std::map<uint8_t,std::vector<uint8_t>> edge_map,uint8_t graph_size);
 void EnsureNeutralDisconnections(Genotype& genotype);
 
-void GenotypeDuplication(Genotype& genotype);
+size_t GenotypeDuplication(Genotype& genotype);
 void GenotypeInsertion(Genotype& genotype);
-void GenotypeDeletion(Genotype& genotype);
+size_t GenotypeDeletion(Genotype& genotype);

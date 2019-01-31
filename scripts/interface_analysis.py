@@ -224,14 +224,26 @@ def plotPhen2(pids_raw):
 
 from matplotlib import collections  as mc
 def add_selection_layer(ax,selections):
-     lines=[]
+     lines=[[(-.5,i+.5,),(.5,i+.5)] for i in range(selections.shape[1])]
      for g_ind, p_ind in np.ndindex(selections.shape):
           if g_ind==(selections.shape[0]-1):
                continue
           lines.append([(g_ind+.5,selections[g_ind,p_ind]+.5),(g_ind+1.5,p_ind+.5)])
+     q=np.loadtxt('/scratch/asl47/Data_Runs/Bulk_Data/Mutation_Run0.txt',dtype=np.uint8)[:selections.shape[0]-1,:].reshape(-1)
+     w=np.genfromtxt('/scratch/asl47/Data_Runs/Bulk_Data/Homology_Run0.txt',dtype=np.float64,delimiter=",")
 
-     lc = mc.LineCollection(lines, linewidths=.5,linestyle='-',color='k',alpha=0.75)
+     
+     
+     #ax.scatter(xx,yy,c=cols[w[x,y]])
+
+     cols=np.array(['k','darkgreen','darkred','blue','gainsboro'])
+     lws=np.array([0.5,1,1,1])
+     lc = mc.LineCollection(lines, linewidths=lws[q],linestyle='-',color=cols[q],alpha=1)
      ax.add_collection(lc)
+
+def add_duplication_layer(ax):
+     dups=[[int(i) for i in line.rstrip()] for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Homology_Run0.txt')]
+     
 
      
      

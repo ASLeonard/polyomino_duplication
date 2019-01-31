@@ -24,7 +24,7 @@ def scrubInput(path,similarity=True):
           #return raw
           try:
                d={'homomer':bool(raw[0]=='1')}
-               d['id']= result.split('.')[0][-4:]
+               d['id']= result.split('.')[0][-6:]
                if len(raw)==1:
                     print("Empty ID on {}".format(d['id']))
                     continue

@@ -197,7 +197,7 @@ void EvolutionRunner() {
   for(uint16_t r=0;r < N_runs;++r) {
     EvolvePopulation("_Run"+std::to_string(r+simulation_params::run_offset));
     /*!PYTHON CALL*/
-    std::system((py_CALL+std::to_string(r)+python_params).c_str());
+    //std::system((py_CALL+std::to_string(r)+python_params).c_str());
     /*!PYTHON CALL*/
 
     
@@ -210,6 +210,7 @@ void EvolvePopulation(std::string run_details) {
   std::ofstream fout_strength(file_base_path+"Strengths"+file_simulation_details,std::ios::out);
   std::string fname_phenotype(file_base_path+"PhenotypeTable"+file_simulation_details);  
   std::ofstream fout_selection_history(file_base_path+"Selections"+file_simulation_details,std::ios::out);
+  std::ofstream fout_mutation(file_base_path+"Mutation"+file_simulation_details,std::ios::out); 
   std::ofstream fout_homology(file_base_path+"Homology"+file_simulation_details,std::ios::out); 
   std::ofstream fout_phenotype_IDs(file_base_path+"PIDs"+file_simulation_details,std::ios::out );
   
@@ -221,15 +222,17 @@ void EvolvePopulation(std::string run_details) {
   
   FitnessPhenotypeTable pt = FitnessPhenotypeTable();
   pt.fit_func=[](double s) {return s*s;};
-  /*
-  pt.known_phenotypes[1].emplace_back(Phenotype(1,1,{1}));
-  pt.known_phenotypes[2].emplace_back(Phenotype(2,1,{1,3}));
-  pt.known_phenotypes[2].emplace_back(Phenotype(2,1,{1,5}));
-  pt.phenotype_fitnesses[1].emplace_back(1);
-  pt.phenotype_fitnesses[2].emplace_back(4);
-  pt.phenotype_fitnesses[2].emplace_back(6);
-  pt.FIXED_TABLE=true;
-  */
+  if(simulation_params::model_type==1) {
+  
+    pt.known_phenotypes[1].emplace_back(Phenotype(1,1,{1}));
+    pt.known_phenotypes[2].emplace_back(Phenotype(2,1,{1,3}));
+    pt.known_phenotypes[2].emplace_back(Phenotype(2,1,{1,5}));
+    pt.phenotype_fitnesses[1].emplace_back(1);
+    pt.phenotype_fitnesses[2].emplace_back(4);
+    pt.phenotype_fitnesses[2].emplace_back(4);
+    pt.FIXED_TABLE=true;
+  
+  }
   
 
 
@@ -245,8 +248,10 @@ void EvolvePopulation(std::string run_details) {
 
     uint16_t nth_genotype=0;
     for(PopulationGenotype& evolving_genotype : evolving_population) { /*! GENOTYPE LOOP */
-      
-      InterfaceAssembly::Mutation(evolving_genotype.genotype,1,1,1);
+      const size_t gs=evolving_genotype.genotype.size();
+      if(gs==0)
+        return;
+      size_t holder=InterfaceAssembly::Mutation(evolving_genotype.genotype,1,1,1);
             
       //const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(evolving_genotype.genotype);
 
@@ -261,8 +266,11 @@ void EvolvePopulation(std::string run_details) {
       }
       //for(auto h : homologies)
       //  fout_homology<<+h<<" ";
-      //fout_homology<<",";
-      fout_homology<<assembly_genotype.size()/4<<" ";
+      if(homologies.size())
+        fout_homology<<+homologies[0];
+      fout_homology<<",";
+
+      fout_mutation<<holder<<" ";
 
         
         
@@ -293,6 +301,7 @@ void EvolvePopulation(std::string run_details) {
     
     BinaryWriter(fout_selection_history,reproducing_selection);
     BinaryWriter(fout_phenotype_IDs,pIDs);
+    fout_mutation<<"\n";
     fout_homology<<"\n";
 
     
@@ -356,6 +365,7 @@ void SetRuntimeConfigurations(int argc, char* argv[]) {
       case 'D': simulation_params::independent_trials=std::stoi(argv[arg+1]);break;
       case 'V': simulation_params::run_offset=std::stoi(argv[arg+1]);break;
       case 'A': simulation_params::model_type=std::stoi(argv[arg+1]);break; 
+      case 'H': simulation_params::homologous_threshold=std::stod(argv[arg+1]);break;
         
       case 'B': FitnessPhenotypeTable::phenotype_builds=std::stoi(argv[arg+1]);break;
       case 'X': FitnessPhenotypeTable::UND_threshold=std::stod(argv[arg+1]);break;

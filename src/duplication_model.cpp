@@ -19,8 +19,10 @@ size_t InterfaceAssembly::Mutation(Genotype& genotype, bool duplication=false, b
     holder+=1;
     GenotypeDuplication(genotype);
   }
-  if(insertion && std::bernoulli_distribution(insertion_rate)(RNG_Engine))
+  if(insertion && std::bernoulli_distribution(insertion_rate)(RNG_Engine)) {
+    holder+=1;
     GenotypeInsertion(genotype);
+  }
   if(deletion && std::bernoulli_distribution(deletion_rate)(RNG_Engine)) {
     holder+=2;
     GenotypeDeletion(genotype);
@@ -78,7 +80,6 @@ Genotype StripMonomers(const Genotype genotype) {
     if(oligomers[nth])
       fresh.insert(fresh.end(),genotype.begin()+nth*4,genotype.begin()+nth*4+4);
   return fresh;
-
 }
 
 namespace interface_model
@@ -97,7 +98,7 @@ namespace interface_model
     return (face1 ^ ReverseBits(~face2)).count();
   }
 
-  std::map<Phenotype_ID,uint16_t> PolyominoAssemblyOutcome(Genotype& binary_genome,FitnessPhenotypeTable* pt,std::vector<uint8_t>& homologies) { //std::set<InteractionPair>& pid_interactions __attribute__((unused))) {
+  std::map<Phenotype_ID,uint16_t> PolyominoAssemblyOutcome(Genotype& binary_genome,FitnessPhenotypeTable* pt,std::map<Phenotype_ID, std::set<InteractionPair>>& pid_interactions) {
     if(binary_genome.empty())
       return {{UNBOUND_pid,1}};
       
@@ -114,21 +115,21 @@ namespace interface_model
     std::vector<Phenotype_ID> Phenotype_IDs;
     Phenotype_IDs.reserve(pt->phenotype_builds);
     std::set<InteractionPair > interacting_indices;
-    std::map<Phenotype_ID, std::set<InteractionPair> > phenotype_interactions;
+    //std::map<Phenotype_ID, std::set<InteractionPair> > phenotype_interactions;
 
     for(uint16_t nth=0;nth<pt->phenotype_builds;++nth) {
       assembly_information=InterfaceAssembly::AssemblePolyomino(edges,interacting_indices);
       switch(assembly_information.size()) {
       case 0: //unbound
         return {{UNBOUND_pid,1}};
-      case 3: //monomer
+        //case 3: //monomer
         //Phenotype_IDs.emplace_back(Phenotype_ID{1,0});
         //break;
-        [[fallthrough]]
+        //[[fallthrough]]
       default:
         phen=GetPhenotypeFromGrid(assembly_information);
         Phenotype_IDs.emplace_back(pt->GetPhenotypeID(phen));
-        phenotype_interactions[Phenotype_IDs.back()].insert(interacting_indices.begin(),interacting_indices.end());
+        pid_interactions[Phenotype_IDs.back()].insert(interacting_indices.begin(),interacting_indices.end());
       }
       /*
       if(assembly_information.size()>0) {
@@ -146,9 +147,20 @@ namespace interface_model
       interacting_indices.clear();
     }
 
-    pt->RelabelPhenotypes(Phenotype_IDs,phenotype_interactions);
+    pt->RelabelPhenotypes(Phenotype_IDs,pid_interactions);
     
-    std::map<Phenotype_ID,uint16_t> ID_counter=pt->PhenotypeFrequencies(Phenotype_IDs,NULL_pid,true);
+    std::map<Phenotype_ID,uint16_t> ID_counter=pt->PhenotypeFrequencies(Phenotype_IDs);
+
+    for(auto iter= pid_interactions.begin(); iter!= pid_interactions.end();) {
+      if (ID_counter.find(iter->first)==ID_counter.end()) {
+        iter = pid_interactions.erase(iter);
+      } else {
+        ++iter;
+    }
+}
+
+
+    /*
     if(ID_counter.find(Phenotype_ID{2,1})!=ID_counter.end()) {
       for(auto external_interaction : phenotype_interactions[Phenotype_ID{2,1}]) {
         //auto external_interaction=*phenotype_interactions[Phenotype_ID{2,1}].begin();
@@ -158,6 +170,7 @@ namespace interface_model
         }
       }
     }
+    */
     return ID_counter;
     /*
     

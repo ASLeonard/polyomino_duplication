@@ -200,37 +200,72 @@ def plotBs(a):
           for g,j in enumerate(i.T):
                plt.plot(range(1000),j,c[g])
      plt.show(block=False)
-         
+
+from matplotlib.colors import ListedColormap
+import matplotlib as mpl
 def plotPhen2(pids_raw):
      pids=ObjArray([[tuple(i) for i in row] for row in pids_raw])
-     
-     f,ax=plt.subplots()
      ref_pids=list(np.unique(pids))
-     c={K:i for i,K in enumerate(ref_pids)}
 
+     dets=[pid for pid in ref_pids if (0,0) not in pid]
+     non_dets=[pid for pid in ref_pids if (0,0) in pid]
+
+     if ((255,0),) in dets:
+          non_dets.append(dets.pop(dets.index(((255,0),))))
+         
+     cmap_base = cm.get_cmap('tab20b',len(dets))
+     cmap_base2 = cm.get_cmap('tab20c',20)
+     cmap_rare=[]
+
+     counter=0
+     for rare in non_dets:
+          raw_rare=tuple(sub_pid for sub_pid in rare if sub_pid!=(0,0))
+          if raw_rare in dets:
+               index = dets.index(raw_rare)
+               cmap_rare.append(cmap_base.colors[index].copy())
+               cmap_rare[-1][3]=.25
+          elif len(raw_rare)==0:
+               cmap_rare.append((1,1,1,1))
+          elif raw_rare==((255,0),):
+               cmap_rare.append((0,0,0,1))
+          else:
+               cmap_rare.append(cmap_base2.colors[counter].copy())
+               cmap_rare[-1][3]=.25
+               counter+=1
+
+
+     cmap_full = ListedColormap(np.vstack((cmap_base.colors,cmap_rare)))
+     #print(cmap_full.colors)
+     c={K:i for i,K in enumerate(dets+non_dets)}
+     #print(c)
+     
      pop_grid=np.empty(pids.shape).T
      for i,j in np.ndindex(pids.shape):
           pop_grid[j,i]=c[pids[i,j]]
-
-     cmap = cm.get_cmap('tab20', len(ref_pids))
-     plt.pcolormesh(pop_grid,cmap=cmap)
+          
+     #len(ref_pids))
+     
+     f,ax=plt.subplots()
+     plt.pcolormesh(pop_grid,cmap=cmap_full,edgecolor=(1.0, 1.0, 1.0, 0.3), linewidth=0.0015625)
      cbar=plt.colorbar(drawedges=True)
      tick_locs = (np.arange(len(ref_pids)) + 0.5)*(len(ref_pids)-1)/len(ref_pids)
      cbar.set_ticks(tick_locs)
 
-     cbar.ax.set_yticklabels(ref_pids, fontsize=14, weight='bold')
+     cbar.ax.set_yticklabels(dets+non_dets, fontsize=14, weight='bold')
      plt.show(block=False)
      return ax
 
 from matplotlib import collections  as mc
-def add_selection_layer(ax,selections):
+def add_selection_layer(ax,selections,colorize='M'):
      lines=[[(-.5,i+.5,),(.5,i+.5)] for i in range(selections.shape[1])]
      for g_ind, p_ind in np.ndindex(selections.shape):
           if g_ind==(selections.shape[0]-1):
                continue
           lines.append([(g_ind+.5,selections[g_ind,p_ind]+.5),(g_ind+1.5,p_ind+.5)])
-     q=np.loadtxt('/scratch/asl47/Data_Runs/Bulk_Data/Mutation_Run0.txt',dtype=np.uint8)[:selections.shape[0]-1,:].reshape(-1)
-     w=np.genfromtxt('/scratch/asl47/Data_Runs/Bulk_Data/Homology_Run0.txt',dtype=np.float64,delimiter=",")
+     mutations=np.loadtxt('/scratch/asl47/Data_Runs/Bulk_Data/Mutation_Run0.txt',dtype=np.uint8)[:selections.shape[0]-1,:].reshape(-1)
+     homologies=np.genfromtxt('/scratch/asl47/Data_Runs/Bulk_Data/Homology_Run0.txt',dtype=np.float64,delimiter=",")
+
+     sizes=np.loadtxt('/scratch/asl47/Data_Runs/Bulk_Data/Size_Run0.txt',dtype=np.uint8).reshape(-1)
 
      
      
@@ -238,7 +273,15 @@ def add_selection_layer(ax,selections):
 
      cols=np.array(['k','darkgreen','darkred','blue','gainsboro'])
      lws=np.array([0.5,1,1,1])
-     lc = mc.LineCollection(lines, linewidths=lws[q],linestyle='-',color=cols[q],alpha=1)
+     col_opts=[]
+     if colorize=='M':
+          col_opts=cols[mutations]
+     elif colorize=='H':
+          pass
+     elif colorize=='S':
+          col_opts=cm.plasma(sizes/np.max(sizes)[:,3])
+     lc = mc.LineCollection(lines, linewidths=lws[mutations],linestyle='-',color=col_opts)
+     #print("max: ",np.max(s))
      ax.add_collection(lc)
 
 def add_duplication_layer(ax):

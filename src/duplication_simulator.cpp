@@ -211,10 +211,12 @@ void EvolvePopulation(std::string run_details) {
   std::string fname_phenotype(file_base_path+"PhenotypeTable"+file_simulation_details);  
   std::ofstream fout_selection_history(file_base_path+"Selections"+file_simulation_details,std::ios::out);
   std::ofstream fout_interactions(file_base_path+"Interactions"+file_simulation_details,std::ios::out);
+  std::ofstream fout_interactions2(file_base_path+"Binteractions"+file_simulation_details,std::ios::out);
   std::ofstream fout_mutation(file_base_path+"Mutation"+file_simulation_details,std::ios::out); 
   std::ofstream fout_homology(file_base_path+"Homology"+file_simulation_details,std::ios::out); 
   std::ofstream fout_phenotype_IDs(file_base_path+"PIDs"+file_simulation_details,std::ios::out );
   std::ofstream fout_size(file_base_path+"Size"+file_simulation_details,std::ios::out );
+  std::ofstream fout_size2(file_base_path+"Fize"+file_simulation_details,std::ios::out );
   
   
   std::vector<double> population_fitnesses(simulation_params::population_size);
@@ -265,11 +267,17 @@ void EvolvePopulation(std::string run_details) {
       //const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(evolving_genotype.genotype);
 
       assembly_genotype=evolving_genotype.genotype;
-      prev_ev=evolving_genotype.pid;
+      fout_size2<<assembly_genotype.size()/4<<" ";
+      const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(evolving_genotype.genotype);
+      for(auto edge : edges)
+        fout_interactions2<<+edge.first.first<<" "<<+edge.first.second<<" ";
+      fout_interactions2<<",";
+      //prev_ev=evolving_genotype.pid;
 
       std::vector<uint8_t> homologies;
       std::map<Phenotype_ID,std::set<InteractionPair>> pid_interactions;
       auto pid_map=interface_model::PolyominoAssemblyOutcome(assembly_genotype,&pt,pid_interactions);
+      
       switch(pid_map.begin()->first.first) {
       case 255:
         population_fitnesses[nth_genotype]=0;
@@ -295,12 +303,12 @@ void EvolvePopulation(std::string run_details) {
 
       //for(auto h : homologies)
       //  fout_homology<<+h<<" ";
-      if(homologies.size())
-        fout_homology<<+homologies[0];
+      for(auto hom : CalculateHomology(assembly_genotype))
+        fout_homology<<+hom<<" ";
       fout_homology<<",";
 
       fout_mutation<<holder<<" ";
-      fout_size<<StripMonomers(assembly_genotype).size()/4<<" ";
+      fout_size<<assembly_genotype.size()/4<<" ";
       
 
         
@@ -336,7 +344,10 @@ void EvolvePopulation(std::string run_details) {
     fout_homology<<"\n";
     fout_phenotype_IDs<<"\n";
     fout_size<<"\n";
+    fout_size2<<"\n";
     fout_interactions<<"\n";
+    fout_interactions2<<"\n";
+
 
     
     //fout_selection_history<<"\n";

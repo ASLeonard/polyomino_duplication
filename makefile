@@ -1,7 +1,7 @@
 MAKEFLAGS+="-j $(nproc)"
 
 #Compiler and Linker
-CXX         := g++
+CXX         := g++-8
 
 #The Target Binary Program
 Du_TARGET   := DuplicationEvolution
@@ -20,7 +20,7 @@ OBJEXT      := o
 #VPATH=src:polyomino/src
 
 #Flags, Libraries and Includes
-CXXFLAGS    := -std=gnu++17 -Wall -Wextra -pedantic -pipe -march=haswell -flto -flto-partition=none -no-pie -ffunction-sections -fdata-sections $(cmdflag)
+CXXFLAGS    := -std=gnu++2a -Wall -Wextra -pedantic -pipe -march=haswell -flto -flto-partition=none -no-pie -ffunction-sections -fdata-sections $(cmdflag)
 ifndef DEBUG
 CXXFLAGS += -O3 -fopenmp
 else

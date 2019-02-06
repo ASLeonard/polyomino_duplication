@@ -68,6 +68,19 @@ bool IsHomologous(const Genotype& genotype, const uint8_t T1, const uint8_t T2) 
   return homology_count/(interface_size*4)>simulation_params::homologous_threshold;
 }
 
+std::vector<uint8_t> CalculateHomology(const Genotype& genotype) {
+  if(genotype.size()<8)
+    return {};
+  std::vector<uint8_t> homology;
+  homology.reserve(genotype.size()/8 * (genotype.size()-4));
+  for(uint8_t tile_1 = 0; tile_1<genotype.size()-4; tile_1+=4)
+    for(uint8_t tile_2 = tile_1+4; tile_2<genotype.size(); tile_2+=4)
+      for(uint8_t face=0; face < 4; ++face)
+        homology.emplace_back((genotype[tile_1+face]^genotype[tile_2+face]).count());
+  return homology;
+}
+
+
 Genotype StripMonomers(const Genotype genotype) {
   std::vector<bool> oligomers(genotype.size()/4);
   const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(genotype);
@@ -104,6 +117,7 @@ namespace interface_model
       
     //InterfaceAssembly::StripNoncodingGenotype(binary_genome);
     Genotype genotype = StripMonomers(binary_genome);
+    binary_genome=genotype;
     if(genotype.empty())
       return {{Phenotype_ID{1,0},1}};
 
@@ -121,6 +135,7 @@ namespace interface_model
       assembly_information=InterfaceAssembly::AssemblePolyomino(edges,interacting_indices);
       switch(assembly_information.size()) {
       case 0: //unbound
+        pt->ClearIncomplete();
         return {{UNBOUND_pid,1}};
         //case 3: //monomer
         //Phenotype_IDs.emplace_back(Phenotype_ID{1,0});
@@ -156,21 +171,9 @@ namespace interface_model
         iter = pid_interactions.erase(iter);
       } else {
         ++iter;
-    }
-}
-
-
-    /*
-    if(ID_counter.find(Phenotype_ID{2,1})!=ID_counter.end()) {
-      for(auto external_interaction : phenotype_interactions[Phenotype_ID{2,1}]) {
-        //auto external_interaction=*phenotype_interactions[Phenotype_ID{2,1}].begin();
-        uint8_t T1=external_interaction.first/4, R1=external_interaction.first%4, T2=external_interaction.second/4, R2=external_interaction.second%4;
-        for(uint8_t faces=0; faces<4; ++faces) {
-          homologies.emplace_back((genotype[(T1*4)+(R1+faces)%4]^genotype[(T2*4)+(R2+faces)%4]).count());
-        }
       }
     }
-    */
+
     return ID_counter;
     /*
     
@@ -199,17 +202,6 @@ namespace interface_model
           std::cout<<"\n";
         }
         */
-    /*
-      }
-      
-    }
-    else {
-      if(!ID_counter.empty())
-        pid=std::max_element(ID_counter.begin(),ID_counter.end(),[] (const auto & p1, const auto & p2) {return p1.second < p2.second;})->first;
-      else
-        pid=NULL_pid;
-    }
-    */
 
     
     

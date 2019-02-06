@@ -47,6 +47,7 @@ namespace simulation_params
   inline double homologous_threshold=.1;
 }
 
+std::vector<uint8_t> CalculateHomology(const Genotype& genotype);
 bool IsHomologous(const Genotype& genotype, const uint8_t T1, const uint8_t T2);
 
 namespace interface_model

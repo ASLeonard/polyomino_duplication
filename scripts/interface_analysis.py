@@ -203,6 +203,16 @@ def plotBs(a):
 
 from matplotlib.colors import ListedColormap
 import matplotlib as mpl
+def lazy(run,style='S'):
+     add_selection_layer(plotPhen2(LoadPIDHistory(run)),LSHB(run,250),run,style)
+     
+def Int(run,g,c):
+     return [line.rstrip() for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Interactions_Run{}.txt'.format(run))][g].split('.')[c]
+def Bint(run,g,c):
+     return [line.rstrip() for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Binteractions_Run{}.txt'.format(run))][g].split(',')[c]
+def Hom(run,g,c):
+     return [line.rstrip() for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Homology_Run{}.txt'.format(run))][g].split(',')[c]
+
 def plotPhen2(pids_raw):
      pids=ObjArray([[tuple(i) for i in row] for row in pids_raw])
      ref_pids=list(np.unique(pids))
@@ -244,44 +254,56 @@ def plotPhen2(pids_raw):
           pop_grid[j,i]=c[pids[i,j]]
           
      #len(ref_pids))
+
      
      f,ax=plt.subplots()
-     plt.pcolormesh(pop_grid,cmap=cmap_full,edgecolor=(1.0, 1.0, 1.0, 0.3), linewidth=0.0015625)
-     cbar=plt.colorbar(drawedges=True)
-     tick_locs = (np.arange(len(ref_pids)) + 0.5)*(len(ref_pids)-1)/len(ref_pids)
+     #img = plt.imshow(np.array([list(range(len(dets)))]), cmap=cmap_base)
+     #img.set_visible(False)
+
+     #cbar=plt.colorbar(drawedges=True)#orientation="vertical")
+
+     px=plt.pcolormesh(pop_grid,cmap=cmap_full)
+     
+     sm=cm.ScalarMappable(cmap=cmap_base)
+     sm.set_array(np.linspace(0,1,len(dets)))
+     
+     cbar=plt.colorbar(sm,drawedges=True)
+     #tick_locs = (np.arange(len(ref_pids)) + 0.5)*(len(ref_pids)-1)/len(ref_pids)
+     tick_locs = (np.arange(len(dets)) + 0.5)/len(dets)
      cbar.set_ticks(tick_locs)
 
-     cbar.ax.set_yticklabels(dets+non_dets, fontsize=14, weight='bold')
+     #cbar.ax.set_yticklabels(dets+non_dets, fontsize=14, weight='bold')
+     cbar.ax.set_yticklabels(dets, fontsize=14, weight='bold')
      plt.show(block=False)
      return ax
 
 from matplotlib import collections  as mc
-def add_selection_layer(ax,selections,colorize='M'):
+def add_selection_layer(ax,selections,run,colorize='M'):
      lines=[[(-.5,i+.5,),(.5,i+.5)] for i in range(selections.shape[1])]
      for g_ind, p_ind in np.ndindex(selections.shape):
           if g_ind==(selections.shape[0]-1):
                continue
           lines.append([(g_ind+.5,selections[g_ind,p_ind]+.5),(g_ind+1.5,p_ind+.5)])
-     mutations=np.loadtxt('/scratch/asl47/Data_Runs/Bulk_Data/Mutation_Run0.txt',dtype=np.uint8)[:selections.shape[0]-1,:].reshape(-1)
-     homologies=np.genfromtxt('/scratch/asl47/Data_Runs/Bulk_Data/Homology_Run0.txt',dtype=np.float64,delimiter=",")
+     mutations=np.loadtxt('/scratch/asl47/Data_Runs/Bulk_Data/Mutation_Run{}.txt'.format(run),dtype=np.uint8)[:selections.shape[0]-1,:].reshape(-1)
+     #homologies=np.genfromtxt('/scratch/asl47/Data_Runs/Bulk_Data/Homology_Run1.txt',dtype=np.float64,delimiter=",")
 
-     sizes=np.loadtxt('/scratch/asl47/Data_Runs/Bulk_Data/Size_Run0.txt',dtype=np.uint8).reshape(-1)
+     sizes=np.loadtxt('/scratch/asl47/Data_Runs/Bulk_Data/Size_Run{}.txt'.format(run),dtype=np.uint8).reshape(-1)
 
+     ##[line.rstrip() for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Interactions_Run1.txt')][815].split('.')[96]##
      
-     
-     #ax.scatter(xx,yy,c=cols[w[x,y]])
 
      cols=np.array(['k','darkgreen','darkred','blue','gainsboro'])
      lws=np.array([0.5,1,1,1])
-     col_opts=[]
+     lc = mc.LineCollection(lines, linewidths=1,linestyle='-',cmap='inferno')#color=col_opts)#lws[mutations]
+     
      if colorize=='M':
-          col_opts=cols[mutations]
+          lc.set_array(mutations)
      elif colorize=='H':
-          pass
+          lc.set_array(homologies)
      elif colorize=='S':
-          col_opts=cm.plasma(sizes/np.max(sizes)[:,3])
-     lc = mc.LineCollection(lines, linewidths=lws[mutations],linestyle='-',color=col_opts)
-     #print("max: ",np.max(s))
+          lc.set_array(sizes)     
+     
+     plt.colorbar(lc)
      ax.add_collection(lc)
 
 def add_duplication_layer(ax):

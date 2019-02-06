@@ -8,6 +8,7 @@ use Try::Tiny;
 
 my $HOME_DIR = "/scratch/asl47/PDB";
 my $WATER_EXEC = "/rscratch/asl47/water";
+my $NEEDLE_EXEC = "/rscratch/asl47/needle";
 my $FREESASA_EXEC = "/rscratch/asl47/freesasa";
 
 system("mkdir -p $HOME_DIR/results");
@@ -72,9 +73,18 @@ try {
     while (<$pdb_innx>) {
         next unless /^TER.*/;       
         my @chain_id = split(' ',$_);
-	my $chain_id_length = $chain_id[4];
-
+	my $chain_id_length=$chain_id[-1];
+	if(scalar @chain_id ==3) 
+	{
+	$chain_id_length=substr($chain_id_length,1)+0;
+	}
+	else 
+	{
 	$chain_id_length =~ s/\D//g;
+	#/-?\d+/
+	}
+
+	
 
         if(length($chain_id[2])==3 && $chain_id_length>20) {
             push @chains, substr($chain_id[3],0,1);
@@ -82,7 +92,8 @@ try {
         #print "CHN: " . @chain_id[3] . "\n";
 
     }
-    my $results = "${HOME_DIR}/results/${pdb_id}_${BA_id}.results";
+    my $subfolder = $HOMOMER == 1 ? 'homodimer' : 'heterodimer';
+    my $results = "${HOME_DIR}/results/${subfolder}/${pdb_id}_${BA_id}.results";
     system("echo ${HOMOMER} > ${results}"); 
     #print "LENGTH " . scalar @chains . "\n";
     if(scalar @chains != 2)
@@ -112,7 +123,9 @@ try {
     }
     else {
         #print "Heteromer\n";
+	system("${NEEDLE_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[1]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");
         system("${WATER_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[1]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");
+	
         system("${FREESASA_EXEC} ${HOME_DIR}/${pdb_id}.pdb${BA_id} --chain-group=${chains[0]}${chains[1]}+${chains[0]}+${chains[1]} | grep Total | tail +2 >> ${results}");   
     }
 } catch {

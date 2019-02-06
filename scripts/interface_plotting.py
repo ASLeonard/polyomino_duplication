@@ -27,7 +27,8 @@ from copy import deepcopy
 from collections import defaultdict
 import pandas as pd
 
-
+def VX(s):
+     VSS([int(i) for i in s.split()])
 def convertTransitionstoDF(data):
      pids={(2,1,1,3):'Hom',(2,1,1,5):'Het'}
      origins={(2,1,1,3):'Dimer',(2,1,1,5):'Dimer',(1,1,1):'Null',(2,1,1,9):'Mixed'}

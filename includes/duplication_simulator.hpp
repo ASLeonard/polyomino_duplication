@@ -22,15 +22,14 @@ struct PopulationGenotype {
 void DimerModelTable(FitnessPhenotypeTable* pt);
 
 /* Main evolution runners */
-uint32_t Evo1(); 
-uint32_t Evo2();
-uint32_t DEvo1(uint8_t gap);
-uint32_t DEvo2(uint8_t gap);
-uint8_t DEvo3(uint8_t gap);
-void EvRu();
-uint32_t Evo(uint8_t ttype); 
+uint32_t DiscoverInteraction(bool self_interaction); 
+uint32_t DecayInteraction(bool self_interaction, uint8_t gap);
+void InteractionMetrics();
+
 void EvolutionRunner();
-void EvolutionRunner2();
+
+void EvolvingHomology();
+
 
 void SetRuntimeConfigurations(int argc, char* argv[]);
 

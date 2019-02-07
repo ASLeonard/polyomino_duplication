@@ -8,6 +8,9 @@ from matplotlib.colors import LogNorm
 import pandas
 import seaborn as sns
 
+def LEH(Y,runs):
+     return np.fromfile('/scratch/asl47/Data_Runs/Bulk_Data/EHom_{:.6f}.BIN'.format(Y),dtype=np.uint8).reshape(2,runs,-1,4)
+
 def loadData(S,fname='Discovs'):
      return [[int(i) for i in line.split()] for line in open('/rscratch/asl47/Discs/{}{:.6f}.BIN'.format(fname,S))]
 

@@ -7,177 +7,105 @@ const std::string file_base_path="//scratch//asl47//Data_Runs//Bulk_Data//";
 const std::map<Phenotype_ID,uint8_t> phen_stages{{{0,0},0},{{10,0},4},{{1,0},1},{{2,0},2},{{4,0},2},{{4,1},3},{{8,0},3},{{12,0},4},{{16,0},4}};
 
 
-/*
-void EvRu() {
+void InteractionMetrics() {
   const uint32_t N_runs=simulation_params::independent_trials;
-  std::ofstream f_out(file_base_path+"Decor"+std::to_string(simulation_params::binding_threshold)+".BIN", std::ios::binary);
-  std::vector<uint8_t> res(N_runs);
-  for(uint8_t gap=0; gap<= simulation_params::samming_threshold/2;gap++) {
-#pragma omp parallel for schedule(dynamic) 
-    for(uint32_t r=0;r < N_runs;++r) {
-      do {
-        res[r]= DEvo3(gap);
-      }while(res[r]==2);
-    }    
-    BinaryWriter(f_out,res);
-  }
-}
-  
-
-
-void EvolutionRunnerz() {
-  const uint32_t N_runs=simulation_params::independent_trials;
-  std::ofstream f_out(file_base_path+"Discovs"+std::to_string(simulation_params::binding_threshold)+".BIN");
-
-  
+  std::ofstream f_out(file_base_path+"Discovery_"+std::to_string(InterfaceAssembly::binding_threshold)+".BIN", std::ios::binary);
+  std::vector<uint8_t> res_S(N_runs),res_A(N_runs);
 #pragma omp parallel for schedule(dynamic) 
   for(uint32_t r=0;r < N_runs;++r) {
-    uint32_t gen=0;
-    if(simulation_params::samming_threshold%2==0)
-      gen = Evo1();
-#pragma omp critical(file_write)
-    f_out<<+gen<<" ";
-    
-  }
-  
-  f_out<<"\n";
+    res_S[r]= DiscoverInteraction(true);
+    res_A[r]= DiscoverInteraction(false);
+  }    
+  BinaryWriter(f_out,res_S);
+  BinaryWriter(f_out,res_A); //untested
+
+  std::ofstream f_out2(file_base_path+"Decay_"+std::to_string(InterfaceAssembly::binding_threshold)+".BIN", std::ios::binary);
+  for(uint8_t gap=0;gap<=InterfaceAssembly::samming_threshold;++gap) {
 #pragma omp parallel for schedule(dynamic) 
-  for(uint32_t r=0;r < N_runs;++r) {
-    uint32_t gen = Evo2();
-#pragma omp critical(file_write)
-    f_out<<+gen<<" ";
-  }
-  f_out<<"\n";
+    for(uint32_t r=0;r < N_runs;++r) {
+      if(gap%2==0 && InterfaceAssembly::samming_threshold%2==0)
+        res_S[r] = DecayInteraction(true,gap/2);
+      res_A[r]= DecayInteraction(false,gap);
+    }
+    BinaryWriter(f_out2,res_S);
+    BinaryWriter(f_out2,res_A);
+  }  
 }
 
-void EvolutionRunner2() {
+void EvolvingHomology() {
   const uint32_t N_runs=simulation_params::independent_trials;
-  std::ofstream f_out(file_base_path+"Decays"+std::to_string(simulation_params::binding_threshold)+".BIN");
-  for(uint8_t gap=0;gap<=simulation_params::samming_threshold;++gap) {
+  std::ofstream f_out(file_base_path+"EHom_"+std::to_string(InterfaceAssembly::binding_threshold)+".BIN", std::ios::binary);
+  for(uint8_t self=0;self<2;++self) {
 #pragma omp parallel for schedule(dynamic) 
     for(uint32_t r=0;r < N_runs;++r) {
-      uint32_t gen=0;
-      if(gap%2==0 && simulation_params::samming_threshold%2==0)
-        gen = DEvo1(gap/2);
-#pragma omp critical(file_write)
-      f_out<<+gen<<" ";
+      std::vector<uint8_t> res;
+      res.reserve(simulation_params::generation_limit*4);
+
+      std::uniform_int_distribution<uint8_t> dis(0, interface_size-1);
+      std::uniform_int_distribution<uint8_t> dis2(0, 7);
+
     
+      Genotype g(8);
+      RandomiseGenotype(g);
+      if(self) {
+        for(size_t n=0;n<interface_size/2;++n)
+          g[0][interface_size-n]=~g[0][n];
+        std::move(g.begin(),g.begin()+4,g.begin()+4);
+    
+      }
+      else
+        g[4]=interface_model::ReverseBits(~g[0]);
+    
+      for(uint32_t generation=1;generation<=simulation_params::generation_limit;++generation) {
+        auto hom = CalculateHomology(g);
+        res.insert(res.end(),hom.begin(),hom.end());
+        g[dis2(RNG_Engine)].flip(dis(RNG_Engine));
+      }
+#pragma omp critical(wrout)
+      {
+        BinaryWriter(f_out,res);
+      }
     }
-  
-    f_out<<"\n";
-#pragma omp parallel for schedule(dynamic) 
-    for(uint32_t r=0;r < N_runs;++r) {
-      uint32_t gen = DEvo2(gap);
-#pragma omp critical(file_write)
-      f_out<<+gen<<" ";
-    }
-    f_out<<"\n";
   }
+    
 }
 
-uint32_t Evo1() {
-  interface_type geno=InterfaceAssembly::GenRandomSite();
-  std::uniform_int_distribution<uint8_t> dis(0, interface_size-1);
-  for(uint32_t generation=1;generation<=simulation_params::generation_limit;++generation) {
-    geno.flip(dis(RNG_Engine));
-    if(interface_model::SammingDistance(geno,geno)<=simulation_params::samming_threshold)
-      return generation;
-  }
-  return 0;
-}
-uint32_t Evo2() {
-  interface_type  geno1,geno2;
-  do {
-    geno1=InterfaceAssembly::GenRandomSite();
-    geno2=InterfaceAssembly::GenRandomSite();
-  }while(interface_model::SammingDistance(geno1,geno2)<=simulation_params::samming_threshold);
+uint32_t DiscoveryInteraction(bool self_interaction) {
+  Genotype g(2);
+  RandomiseGenotype(g);
+  interface_type  geno1=g[0],geno2=g[1];
 
-  std::uniform_int_distribution<uint8_t> dis(0, interface_size-1);
+  std::uniform_int_distribution<size_t> dis(0, interface_size-1);
   for(uint32_t generation=1;generation<=simulation_params::generation_limit;++generation) {
     geno1.flip(dis(RNG_Engine));
-    if(interface_model::SammingDistance(geno1,geno2)<=simulation_params::samming_threshold)
+    if(interface_model::SammingDistance(geno1,self_interaction?geno1:geno2)<=InterfaceAssembly::samming_threshold)
       return generation;
   }
   return 0;
 }
 
-uint32_t DEvo1(uint8_t gap) {
-  interface_type geno=InterfaceAssembly::GenRandomSite();
-  for(size_t n=0;n<interface_size/2;++n)
-    geno[interface_size-n]=~geno[n];
+uint32_t DecayInteraction(bool self_interaction, uint8_t gap) {
+  interface_type geno1=InterfaceAssembly::GenRandomSite(), geno2=interface_model::ReverseBits(~geno1);
+  if(self_interaction)
+    for(size_t n=0;n<interface_size/2;++n)
+      geno1[interface_size-n]=~geno1[n];
 
   std::uniform_int_distribution<uint8_t> dis(0, interface_size-1);
-  std::vector<uint8_t> bits(interface_size/2);
-  std::iota(bits.begin(),bits.end(),0);
-  std::shuffle(bits.begin(),bits.end(),RNG_Engine);
-
-  for(uint8_t b=0; b<gap;++b)
-    geno.flip(bits[b]);
-
-  
-  for(uint32_t generation=1;generation<=simulation_params::generation_limit;++generation) {
-     geno.flip(dis(RNG_Engine));
-    if(interface_model::SammingDistance(geno,geno)>simulation_params::samming_threshold)
-      return generation;
-  }
-  return 0;
-}
-
-uint32_t DEvo2(uint8_t gap) {
-
-  interface_type geno1=InterfaceAssembly::GenRandomSite();
-  interface_type geno2=interface_model::ReverseBits(~geno1);
-
-  std::uniform_int_distribution<uint8_t> dis(0, interface_size-1);
-  std::vector<uint8_t> bits(interface_size);
+  std::vector<uint8_t> bits(interface_size/(self_interaction?2:1));
   std::iota(bits.begin(),bits.end(),0);
   std::shuffle(bits.begin(),bits.end(),RNG_Engine);
 
   for(uint8_t b=0; b<gap;++b)
     geno1.flip(bits[b]);
 
-  
   for(uint32_t generation=1;generation<=simulation_params::generation_limit;++generation) {
-    geno2.flip(dis(RNG_Engine));
-    if(interface_model::SammingDistance(geno1,geno2)>simulation_params::samming_threshold)
+    geno1.flip(dis(RNG_Engine));
+    if(interface_model::SammingDistance(geno1,self_interaction?geno1:geno2)>InterfaceAssembly::samming_threshold)
       return generation;
   }
   return 0;
-}
-
-uint8_t DEvo3(uint8_t gap) {
-
-  interface_type geno1=InterfaceAssembly::GenRandomSite();
-  for(size_t n=0;n<interface_size/2;++n)
-    geno1[interface_size-n]=~geno1[n];
- 
-  
-  std::uniform_int_distribution<uint8_t> dis(0, interface_size-1);
-  std::vector<uint8_t> bits(interface_size);
-  std::iota(bits.begin(),bits.end(),0);
-  std::shuffle(bits.begin(),bits.end(),RNG_Engine);
-  std::bernoulli_distribution bern(0.5);
-  for(uint8_t b=0; b<gap;++b)
-    geno1.flip(bits[b]);
-  interface_type geno2=geno1;
-  
-
-  for(uint32_t generation=1;generation<=100000;++generation) {
-    if(InterfaceAssembly::GetActiveInterfaces(std::vector<interface_type>{geno1,geno2}).size()==1) {
-      return interface_model::SammingDistance(geno1,geno2)<=simulation_params::samming_threshold;
-    }
-
-    if(bern(RNG_Engine))
-      geno1.flip(dis(RNG_Engine));
-    else
-      geno2.flip(dis(RNG_Engine));
-
-
-  }
-  return 2;
 
 }
-*/
 
 
 void EvolutionRunner() {
@@ -229,11 +157,8 @@ void EvolvePopulation(std::string run_details) {
   FitnessPhenotypeTable pt = FitnessPhenotypeTable();
   pt.fit_func=[](double s) {return s*s;};
 
-  
-
-  
+   
   if(simulation_params::model_type==17) {
-  
     pt.known_phenotypes[1].emplace_back(Phenotype(1,1,{1}));
     pt.known_phenotypes[2].emplace_back(Phenotype(2,1,{1,3}));
     pt.known_phenotypes[2].emplace_back(Phenotype(2,1,{1,5}));
@@ -241,18 +166,14 @@ void EvolvePopulation(std::string run_details) {
     pt.phenotype_fitnesses[2].emplace_back(4);
     pt.phenotype_fitnesses[2].emplace_back(4);
     pt.FIXED_TABLE=true;
-  
   }
   
-
-
   
   Genotype assembly_genotype;
   std::vector<uint8_t> pIDs(simulation_params::population_size*2);
   //std::vector< std::map<Phenotype_
   Phenotype_ID prev_ev;
-
-  
+ 
   
   for(uint32_t generation=0;generation<simulation_params::generation_limit;++generation) { /*! MAIN EVOLUTION LOOP */
 
@@ -379,7 +300,7 @@ int main(int argc, char* argv[]) {
   
   switch(run_option) {
   case 'B':
-    //EvRu();
+    EvolvingHomology();
     break;
   case 'E':
     EvolutionRunner();

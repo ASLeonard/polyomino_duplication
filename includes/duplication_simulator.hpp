@@ -12,9 +12,13 @@ namespace simulation_params
 }
 
 struct PopulationGenotype {
+  static constexpr size_t PID_depth=10;
   Genotype genotype;
-  Phenotype_ID pid;
-  PopulationGenotype(void) : genotype(simulation_params::n_tiles*4), pid{1,0} {RandomiseGenotype(genotype);};
+  std::vector<Phenotype_ID> pids;
+  std::map<Phenotype_ID, std::array<bool, PID_depth> > PID_tracker;
+  std::map<Phenotype_ID, std::pair<std::pair<size_t,size_t>, size_t> > PID_info;
+
+  PopulationGenotype(void) : genotype(simulation_params::n_tiles*4) {RandomiseGenotype(genotype);};
   
 };
 
@@ -27,6 +31,8 @@ uint32_t DecayInteraction(bool self_interaction, uint8_t gap);
 void InteractionMetrics();
 
 void EvolutionRunner();
+
+void EvolveHomology(std::string run_details,bool self);
 
 void EvolvingHomology();
 

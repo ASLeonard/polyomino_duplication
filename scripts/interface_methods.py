@@ -8,8 +8,38 @@ from matplotlib.colors import LogNorm
 import pandas
 import seaborn as sns
 
-def LEH(Y,runs):
-     return np.fromfile('/scratch/asl47/Data_Runs/Bulk_Data/EHom_{:.6f}.BIN'.format(Y),dtype=np.uint8).reshape(2,runs,-1,4)
+from scipy.optimize import curve_fit
+def func(x, b):
+     return .5*np.exp(-b * x)+.5
+
+def plotHomology(data,L):
+     f,(ax1,ax2)=plt.subplots(1,2,sharex=True,sharey=True)
+     ax1.set_ylim((0,1))
+     ax1.axhline(.5,c='k',lw=3,ls='--')
+     ax2.axhline(.5,c='k',lw=3,ls='--')
+     cols=['b','r','g','c']
+     overalls=[[],[]]
+     #GEN=data[0].shape[0]
+     for i,sea in enumerate(data):
+          mean=np.mean(sea,axis=1)
+          GEN=mean.shape[0]
+          overalls[i%2].append(mean)
+          for j in range(4):
+               pass#(ax1 if i%2 else ax2).plot(range(GEN),1-mean[:,j]/L,c=cols[j],alpha=0.5)
+
+     for i in range(2):
+          avg=np.mean(np.array(overalls[i]),axis=0)
+          for j in range(4):
+               if j==0 and i==0:
+                    popt, pcov = curve_fit(func, range(GEN), 1-avg[:,j]/L)
+                    f=lomax.fit(1-avg[:,])
+                    print(popt)
+                    (ax1 if i%2 else ax2).plot(range(GEN),func(np.arange(GEN),*popt),c=cols[j],lw=3,ls=':')
+               (ax1 if i%2 else ax2).plot(range(GEN),1-avg[:,j]/L,c=cols[j],lw=3)
+     plt.show(block=False)
+     
+def LEH(Y,runs,pop):
+     return np.fromfile('/scratch/asl47/Data_Runs/Bulk_Data/Bomology_Run{}.BIN'.format(runs),dtype=np.uint8).reshape(-1,pop,4)
 
 def loadData(S,fname='Discovs'):
      return [[int(i) for i in line.split()] for line in open('/rscratch/asl47/Discs/{}{:.6f}.BIN'.format(fname,S))]

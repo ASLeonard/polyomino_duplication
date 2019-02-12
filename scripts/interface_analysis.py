@@ -203,6 +203,37 @@ def plotBs(a):
 
 from matplotlib.colors import ListedColormap
 import matplotlib as mpl
+
+def homm(run,L):
+     return [[int(i) for i in line.split()] for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Yomology_Run{}.txt'.format(run))]
+
+def strr(run,L):
+     return [[L-int(i) for i in line.split()] for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Strengths_Run{}.txt'.format(run))]
+
+
+
+import matplotlib.colors as mpc
+def plotHom(run,L):
+
+     f,axes=plt.subplots(2,1,sharex=True)
+     for ax,func in zip(axes,(homm,strr)):
+          data=func(run,L)
+          pop_grid=np.ma.zeros((L+1,len(data)))
+          pop_grid.mask=True
+          for i,row in enumerate(data):
+               c=Counter(row)
+               for k,v in c.items():
+                    pop_grid.mask[k,i]=False
+                    pop_grid[k,i]=v/sum(c.values())
+          px=ax.pcolormesh(pop_grid,cmap='RdGy',norm=mpc.LogNorm(vmin=pop_grid.min(), vmax=pop_grid.max()))
+
+     axes[0].set_ylabel('Homology')
+     axes[1].set_ylabel('Strength')
+     
+     f.colorbar(px,ax=axes)
+     plt.show(block=False)
+     
+     
 def lazy(run,style='S'):
      add_selection_layer(plotPhen2(LoadPIDHistory(run)),LSHB(run,250),run,style)
      
@@ -239,7 +270,7 @@ def plotPhen2(pids_raw):
           elif raw_rare==((255,0),):
                cmap_rare.append((0,0,0,1))
           else:
-               cmap_rare.append(cmap_base2.colors[counter].copy())
+               cmap_rare.append(cmap_base2.colors[counter%20].copy())
                cmap_rare[-1][3]=.25
                counter+=1
 
@@ -312,21 +343,28 @@ def add_duplication_layer(ax):
 
      
      
-def plotPhen(ps):
-     plt.figure()
-     ps=[[tuple(i) for i in row]for row in ps]
-     refs=list(np.unique(ps))
-     d={K:[] for K in refs}
-     for row in ps:
-          c=Counter(row)
-          for k,v in c.items():
-               d[k].append(v)
-          for j in refs:
-               if j not in c:
-                    d[j].append(0)
+def plotPhen(pids_raw):
+     pids=ObjArray([[tuple(i) for i in row] for row in pids_raw])
+     ref_pids=list(np.unique(pids))
+     flat_list = [item for sublist in ref_pids for item in sublist]
+     unique_pids=list(set(flat_list))
 
-     for k,v in d.items():
-          plt.plot(range(len(list(d.values())[0])),d[k],label=k)
+     gen_counts={K:[0]*pids.shape[0] for K in unique_pids}
+     for i,row in enumerate(pids):
+
+          for indv in row:
+               for pid in indv:
+                    if pid in gen_counts:
+
+                         gen_counts[pid][i]+=1
+
+     
+     plt.figure()
+     
+    
+
+     for k,v in gen_counts.items():
+          plt.plot(range(pids.shape[0]),v,label=k)
      plt.legend()
      #plt.yscale('log',nonposy='mask')
      plt.show(block=False)

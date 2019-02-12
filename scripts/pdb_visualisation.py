@@ -55,7 +55,7 @@ def scrubInput(path,local_alignment=True,similarity=True):
          # rows_list.append
           
 def plotData(data):
-     g=sns.regplot(x="homology", y="BSA", data=data)
-     #g = sns.jointplot(x="homology", y="BSA", data=data,xlim=(0,100))
+     #g=sns.regplot(x="homology", y="BSA", data=data)
+     g = sns.jointplot(x="homology", y="BSA", data=data,xlim=(0,100))
 
      plt.show(block=False)

@@ -255,7 +255,7 @@ void EvolvePopulation(std::string run_details) {
 
   Phenotype::DETERMINISM_LEVEL=1;
   FitnessPhenotypeTable pt = FitnessPhenotypeTable();
-  pt.fit_func=[](double s) {return s*s;};
+  pt.fit_func=[](double s) {return s;};
 
    
   if(simulation_params::model_type==17) {

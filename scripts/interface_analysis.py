@@ -343,19 +343,19 @@ def add_duplication_layer(ax):
 
      
      
-def plotPhen(pids_raw):
+def plotPhen(pids_raw,thresh=0.25):
      pids=ObjArray([[tuple(i) for i in row] for row in pids_raw])
      ref_pids=list(np.unique(pids))
      flat_list = [item for sublist in ref_pids for item in sublist]
      unique_pids=list(set(flat_list))
 
-     gen_counts={K:[0]*pids.shape[0] for K in unique_pids}
-     for i,row in enumerate(pids):
+     gens,pop_size=pids_raw.shape
 
+     gen_counts={K:[0]*gens for K in unique_pids}
+     for i,row in enumerate(pids):
           for indv in row:
                for pid in indv:
                     if pid in gen_counts:
-
                          gen_counts[pid][i]+=1
 
      
@@ -364,7 +364,9 @@ def plotPhen(pids_raw):
     
 
      for k,v in gen_counts.items():
-          plt.plot(range(pids.shape[0]),v,label=k)
+          if max(v)<pop_size*thresh:
+               continue
+          plt.plot(range(gens),v,label=k,ls='-' if k!=(0,0) else ':',c=None if k!=(0,0) else 'k')
      plt.legend()
      #plt.yscale('log',nonposy='mask')
      plt.show(block=False)

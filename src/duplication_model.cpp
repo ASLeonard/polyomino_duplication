@@ -111,7 +111,7 @@ namespace interface_model
     return (face1 ^ ReverseBits(~face2)).count();
   }
 
-  std::map<Phenotype_ID,uint16_t> PolyominoAssemblyOutcome(Genotype& binary_genome,FitnessPhenotypeTable* pt,std::map<Phenotype_ID, std::set<InteractionPair>>& pid_interactions) {
+  std::map<Phenotype_ID,uint16_t> PolyominoAssemblyOutcome(Genotype& binary_genome,FitnessPhenotypeTable* pt,std::map<Phenotype_ID, std::map<InteractionPair,uint16_t> >& pid_interactions) {//std::map<Phenotype_ID, std::set<InteractionPair>>& pid_interactions) {
     if(binary_genome.empty())
       return {{UNBOUND_pid,1}};
       
@@ -144,7 +144,9 @@ namespace interface_model
       default:
         phen=GetPhenotypeFromGrid(assembly_information);
         Phenotype_IDs.emplace_back(pt->GetPhenotypeID(phen));
-        pid_interactions[Phenotype_IDs.back()].insert(interacting_indices.begin(),interacting_indices.end());
+        for(const auto& inter : interacting_indices)
+          ++pid_interactions[Phenotype_IDs.back()][inter];
+        //pid_interactions[Phenotype_IDs.back()].insert(interacting_indices.begin(),interacting_indices.end());
       }
       /*
       if(assembly_information.size()>0) {
@@ -161,8 +163,10 @@ namespace interface_model
         
       interacting_indices.clear();
     }
-
-    pt->RelabelPhenotypes(Phenotype_IDs,pid_interactions);
+    
+    pt->RelabelPIDs(Phenotype_IDs);
+    pt->RelabelMaps(pid_interactions,true);
+    pt->UpdateFitnesses();
     
     std::map<Phenotype_ID,uint16_t> ID_counter=pt->PhenotypeFrequencies(Phenotype_IDs);
 
@@ -175,51 +179,6 @@ namespace interface_model
     }
 
     return ID_counter;
-    /*
-    
-    if(simulation_params::model_type==1) {
-      if(std::find(Phenotype_IDs.begin(),Phenotype_IDs.end(),Phenotype_ID{2,0})!=Phenotype_IDs.end() && std::find(Phenotype_IDs.begin(),Phenotype_IDs.end(),Phenotype_ID{2,1})!=Phenotype_IDs.end())
-        pid=Phenotype_ID{2,2};
-      else
-        pid=std::max_element(ID_counter.begin(),ID_counter.end(),[] (const auto & p1, const auto & p2) {return p1.second < p2.second;})->first;
-      
-      if(ID_counter.find(Phenotype_ID{2,1})!=ID_counter.end()) {
-        for(auto external_interaction : phenotype_interactions[Phenotype_ID{2,1}]) {
-          //auto external_interaction=*phenotype_interactions[Phenotype_ID{2,1}].begin();
-          uint8_t T1=external_interaction.first/4, R1=external_interaction.first%4, T2=external_interaction.second/4, R2=external_interaction.second%4;
-          for(uint8_t faces=0; faces<4; ++faces) {
-            homologies.emplace_back((genotype[(T1*4)+(R1+faces)%4]^genotype[(T2*4)+(R2+faces)%4]).count());
-          }
-        }
-        /*
-        if(phenotype_interactions[Phenotype_ID{2,1}].size()==1) {
-          int x=1;
-        }
-        else {
-          std::cout<<"hmm "<<phenotype_interactions[Phenotype_ID{2,1}].size()<<"\n";
-          for(auto x : phenotype_interactions[Phenotype_ID{2,1}])
-            std::cout<<+x.first<<" "<<+x.second<<" ";
-          std::cout<<"\n";
-        }
-        */
-
-    
-    
-
-    //pid_interactions=phenotype_interactions[pid];
-
-    /*
-    if(simulation_params::model_type==1)
-      return pt->SingleFitness(pid,ID_counter[pid]);
-    if(simulation_params::model_type==2) {
-      for(auto kv : ID_counter) {
-        if(kv.first!=NULL_pid && kv.first!=pid)
-          pid_interactions.merge(phenotype_interactions[kv.first]);
-      }
-
-    }
-    */
-    //return pt->GenotypeFitness(ID_counter);
   }
 
 

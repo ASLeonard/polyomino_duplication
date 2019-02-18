@@ -41,6 +41,7 @@ void SetRuntimeConfigurations(int argc, char* argv[]);
 
 
 template<typename T, typename A>
-void BinaryWriter(std::ofstream& bfile,const std::vector<T,A>& vec) {
+void BinaryWriter(std::ofstream& bfile,std::vector<T,A>& vec) {
   bfile.write(reinterpret_cast<const char*>(vec.data()), vec.size()*sizeof(T));
+  std::fill(vec.begin(),vec.end(),0);
 }

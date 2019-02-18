@@ -207,24 +207,36 @@ import matplotlib as mpl
 def homm(run,L):
      return [[int(i) for i in line.split()] for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Yomology_Run{}.txt'.format(run))]
 
+def homm2(fname,run,L):
+     return np.fromfile('/scratch/asl47/Data_Runs/Bulk_Data/{}_Run{}.txt'.format(fname,run),dtype=np.uint16).reshape(-1,L+1)
+
 def strr(run,L):
      return [[L-int(i) for i in line.split()] for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Strengths_Run{}.txt'.format(run))]
 
 
+def norm_rows(a):
+     x=np.sum(a)
+     return a if (x==0) else a/x
 
 import matplotlib.colors as mpc
 def plotHom(run,L):
 
      f,axes=plt.subplots(2,1,sharex=True)
-     for ax,func in zip(axes,(homm,strr)):
-          data=func(run,L)
-          pop_grid=np.ma.zeros((L+1,len(data)))
-          pop_grid.mask=True
-          for i,row in enumerate(data):
-               c=Counter(row)
-               for k,v in c.items():
-                    pop_grid.mask[k,i]=False
-                    pop_grid[k,i]=v/sum(c.values())
+     for ax,func in zip(axes,('Zomology','Strengths')):
+          if func==strr:
+               continue
+               print(homm)
+          data=homm2(func,run,L)
+          data=np.apply_along_axis(norm_rows,1,data.astype(np.float)).T
+          pop_grid= ma.masked_equal(data,0)
+          
+          #pop_grid=np.ma.zeros((L+1,len(data)))
+          #pop_grid.mask=True
+          #for i,row in enumerate(data):
+          #     c=Counter(row)c
+          #     for k,v in c.items():
+          #          pop_grid.mask[k,i]=False
+          #          pop_grid[k,i]=v/sum(c.values())
           px=ax.pcolormesh(pop_grid,cmap='RdGy',norm=mpc.LogNorm(vmin=pop_grid.min(), vmax=pop_grid.max()))
 
      axes[0].set_ylabel('Homology')

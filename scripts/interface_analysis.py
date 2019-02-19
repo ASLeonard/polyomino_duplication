@@ -219,7 +219,8 @@ def norm_rows(a):
      return a if (x==0) else a/x
 
 import matplotlib.colors as mpc
-def plotHom(run,L):
+import numpy.ma as ma
+def plotHom(run,L,norm=True):
 
      f,axes=plt.subplots(2,1,sharex=True)
      for ax,func in zip(axes,('Zomology','Strengths')):
@@ -227,8 +228,9 @@ def plotHom(run,L):
                continue
                print(homm)
           data=homm2(func,run,L)
-          data=np.apply_along_axis(norm_rows,1,data.astype(np.float)).T
-          pop_grid= ma.masked_equal(data,0)
+          if norm:
+               data=np.apply_along_axis(norm_rows,1,data.astype(np.float))
+          pop_grid= ma.masked_equal(data.T,0)
           
           #pop_grid=np.ma.zeros((L+1,len(data)))
           #pop_grid.mask=True
@@ -247,7 +249,7 @@ def plotHom(run,L):
      
      
 def lazy(run,style='S'):
-     add_selection_layer(plotPhen2(LoadPIDHistory(run)),LSHB(run,250),run,style)
+     add_selection_layer(plotPhen2(LoadPIDHistory(run)),LSHB(run,100),run,style)
      
 def Int(run,g,c):
      return [line.rstrip() for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Interactions_Run{}.txt'.format(run))][g].split('.')[c]

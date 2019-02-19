@@ -106,70 +106,6 @@ uint32_t DecayInteraction(bool self_interaction, uint8_t gap) {
   return 0;
 
 }
-
-
-void EvolutionRunner() {
-  /*!PYTHON INFORMATION*/
-
-  Phenotype::DETERMINISM_LEVEL=3;
-  KILL_BACK_MUTATIONS=true;
-  const std::string py_exec = "python3 ";
-  const std::string py_loc = "~/Documents/PolyDev/duplication/scripts/interface_analysis.py ";
-  const std::string py_mode="internal "+std::to_string(simulation_params::model_type);
-  
-  const std::string py_CALL=py_exec + py_loc + py_mode + " "+std::to_string(BINARY_WRITE_FILES)+" ";
-  const std::string python_params=" "+std::to_string(InterfaceAssembly::binding_threshold)+" "+std::to_string(InterfaceAssembly::temperature)+" "+std::to_string(InterfaceAssembly::mutation_rate)+" "+std::to_string(InterfaceAssembly::duplication_rate)+" "+std::to_string(InterfaceAssembly::insertion_rate)+" "+std::to_string(InterfaceAssembly::deletion_rate)+" "+std::to_string(simulation_params::population_size);
-
-  const uint16_t N_runs=simulation_params::independent_trials;
-#pragma omp parallel for schedule(dynamic) 
-  for(uint16_t r=0;r < N_runs;++r) {
-    //EvolveHomology("_Run"+std::to_string(r+simulation_params::run_offset),r%2);
-    EvolvePopulation("_Run"+std::to_string(r+simulation_params::run_offset));
-    /*!PYTHON CALL*/
-    //std::system((py_CALL+std::to_string(r)+python_params).c_str());
-    /*!PYTHON CALL*/
-
-    
-  }
-}
-
-void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::map<Phenotype_ID, std::map<std::pair<size_t,size_t>, size_t> >& Homology_tracker) {
-  //shift all observations 1 generation down
-  for(auto& kv : PG.PID_tracker) {
-    kv.second.front()=false;
-    std::rotate(kv.second.begin()+1,kv.second.begin(),kv.second.end());
-  }
-
-  //increment tracking for all pids, store original discovery for new ones
-  for(const auto& pid : PG.pids) {
-    if(pid==UNBOUND_pid || pid==NULL_pid || pid==Phenotype_ID{1,0})
-      continue;
-    if(PG.PID_tracker.find(pid)==PG.PID_tracker.end())
-      PG.PID_info[pid]={{1,2},3}; //generation, population index, homology
-    PG.PID_tracker[pid].back()=true;
-  }
-
-
-  //remove outdated observations from tracking
-  for(auto iter = PG.PID_tracker.begin(); iter!=PG.PID_tracker.end();) {
-    if(std::find(iter->second.begin(),iter->second.end(),true)!=iter->second.end()) 
-      ++iter;
-    else 
-      iter=PG.PID_tracker.erase(iter);
-  }
-    
-
-  //Record homology for "successful" observations
-  if(PG.PID_tracker.size()==1 && std::accumulate(PG.PID_tracker.begin()->second.begin(),PG.PID_tracker.begin()->second.end(),0)==PG.PID_depth) {
-    const auto pid= PG.PID_tracker.begin()->first;
-    if(Homology_tracker.find(pid)==Homology_tracker.end()) {
-      Homology_tracker[pid][PG.PID_info[pid].first]=PG.PID_info[pid].second;
-      //std::cout<<"homology added"<<"\n";
-    }
-  }
-  
-}
-
 void EvolveHomology(std::string run_details,bool self) {
   std::string file_simulation_details=run_details+".BIN";
   std::ofstream fout_homology(file_base_path+"Bomology"+file_simulation_details,std::ios::binary); 
@@ -228,6 +164,78 @@ void EvolveHomology(std::string run_details,bool self) {
   }
   BinaryWriter(fout_homology,res);  
 }
+
+void EvolutionRunner() {
+  /*!PYTHON INFORMATION*/
+
+  Phenotype::DETERMINISM_LEVEL=3;
+  KILL_BACK_MUTATIONS=true;
+  const std::string py_exec = "python3 ";
+  const std::string py_loc = "~/Documents/PolyDev/duplication/scripts/interface_analysis.py ";
+  const std::string py_mode="internal "+std::to_string(simulation_params::model_type);
+  
+  const std::string py_CALL=py_exec + py_loc + py_mode + " "+std::to_string(BINARY_WRITE_FILES)+" ";
+  const std::string python_params=" "+std::to_string(InterfaceAssembly::binding_threshold)+" "+std::to_string(InterfaceAssembly::temperature)+" "+std::to_string(InterfaceAssembly::mutation_rate)+" "+std::to_string(InterfaceAssembly::duplication_rate)+" "+std::to_string(InterfaceAssembly::insertion_rate)+" "+std::to_string(InterfaceAssembly::deletion_rate)+" "+std::to_string(simulation_params::population_size);
+
+  const uint16_t N_runs=simulation_params::independent_trials;
+#pragma omp parallel for schedule(dynamic) 
+  for(uint16_t r=0;r < N_runs;++r) {
+    //EvolveHomology("_Run"+std::to_string(r+simulation_params::run_offset),r%2);
+    EvolvePopulation("_Run"+std::to_string(r+simulation_params::run_offset));
+    /*!PYTHON CALL*/
+    //std::system((py_CALL+std::to_string(r)+python_params).c_str());
+    /*!PYTHON CALL*/
+
+    
+  }
+}
+
+void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::map<Phenotype_ID, std::map<std::pair<size_t,size_t>, size_t> >& Homology_tracker,size_t a, size_t b,std::map<Phenotype_ID,uint16_t> mm, std::map<Phenotype_ID, std::map<InteractionPair,uint16_t> > mx) {
+  //shift all observations 1 generation down
+  for(auto& kv : PG.PID_tracker) {
+    kv.second.front()=false;
+    std::rotate(kv.second.begin()+1,kv.second.begin(),kv.second.end());
+  }
+
+  //increment tracking for all pids, store original discovery for new ones
+  for(const auto& pid : PG.pids) {
+    if(pid==UNBOUND_pid || pid==NULL_pid || pid==Phenotype_ID{1,0})
+      continue;
+    if(PG.PID_tracker.find(pid)==PG.PID_tracker.end()) {
+      size_t qa=0;
+      for(auto mn : mx[pid])
+        qa+=mn.second;
+
+      if((qa*1./mm[pid]-qa/mm[pid])>.05) {
+        std::cout<<"Here now: "<<+pid.first<<", "<<+pid.second<<" cc "<<mm[pid]<<" & "<<qa<<"\n";
+        for(auto mn : mx[pid])
+          std::cout<<+mn.first.first<<", "<<+mn.first.second<<" = "<<mn.second<<"\n";
+          }
+      PG.PID_info[pid]={{mm[pid],qa},3}; //generation, population index, homology
+    }
+    PG.PID_tracker[pid].back()=true;
+  }
+
+  //remove outdated observations from tracking
+  for(auto iter = PG.PID_tracker.begin(); iter!=PG.PID_tracker.end();) {
+    if(std::find(iter->second.begin(),iter->second.end(),true)!=iter->second.end()) 
+      ++iter;
+    else 
+      iter=PG.PID_tracker.erase(iter);
+  }
+    
+  //Record homology for "successful" observations
+  if(PG.PID_tracker.size()==1 && std::accumulate(PG.PID_tracker.begin()->second.begin(),PG.PID_tracker.begin()->second.end(),0)==PG.PID_depth) {
+    const auto pid= PG.PID_tracker.begin()->first;
+    if(Homology_tracker.find(pid)==Homology_tracker.end()) {
+      Homology_tracker[pid][PG.PID_info[pid].first]=PG.PID_info[pid].second;
+      std::cout<<"homology added for "<<pid<<" at "<<+PG.PID_info[pid].first.first<<", "<<+PG.PID_info[pid].first.second<<"\n";
+    }
+  }
+  
+}
+
+
 
 
 void EvolvePopulation(std::string run_details) {
@@ -291,7 +299,7 @@ void EvolvePopulation(std::string run_details) {
       //const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(evolving_genotype.genotype);
 
       Genotype assembly_genotype=evolving_genotype.genotype;
-      fout_size2<<assembly_genotype.size()/4<<" ";
+      //fout_size2<<assembly_genotype.size()/4<<" ";
       const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(evolving_genotype.genotype);
       for(auto edge : edges)
         fout_interactions2<<+edge.first.first<<" "<<+edge.first.second<<" ";
@@ -311,9 +319,13 @@ void EvolvePopulation(std::string run_details) {
         population_fitnesses[nth_genotype]=1;
         break;
       default:
-        population_fitnesses[nth_genotype]=pt.GenotypeFitness(pid_map);
-
+        if(evolving_genotype.genotype.size()>(8*pid_map.rbegin()->first.first))
+          population_fitnesses[nth_genotype]=0; //oversized genotype
+        else
+          population_fitnesses[nth_genotype]=pt.GenotypeFitness(pid_map);
       }
+
+      //Add pids to genotype
       evolving_genotype.pids.clear();
       for(auto& kv : pid_map) {
         evolving_genotype.pids.emplace_back(kv.first);
@@ -321,7 +333,8 @@ void EvolvePopulation(std::string run_details) {
       }
       fout_phenotype_IDs<<",";
 
-      UpdatePhylogenyTrackers(evolving_genotype,evolution_record);
+      const size_t pax = evolution_record.size();
+      UpdatePhylogenyTrackers(evolving_genotype,evolution_record,generation,nth_genotype,pid_map,pid_interactions);
       std::set<InteractionPair> unique_interactions;
       for(auto& kv : pid_interactions) {
         fout_interactions<<+kv.first.first<<" "<<+kv.first.second<<" "; //pids
@@ -348,7 +361,18 @@ void EvolvePopulation(std::string run_details) {
           bvy[interface_size-interface_model::SammingDistance(assembly_genotype[IP.first],assembly_genotype[IP.second])]+=ints_kv.second;
         }
       }
-
+      if(!pid_interactions.empty()) {
+      uint16_t sizx=0;
+      Phenotype_ID pid_m=pid_interactions.rbegin()->first;
+      if(pid_m.first==0)
+        std::cout<<"??"<<"\n";
+      for(auto uk : pid_interactions[pid_m]) {
+          sizx+=uk.second;
+      }
+      fout_size2<<sizx*1./pid_map[pid_m]<<" ";
+      if(evolution_record.size()!=pax)
+        std::cout<<"ratio "<<sizx*1./pid_map[pid_m]<<"\n";
+      }
       //for(auto h : homologies)
       //  fout_homology<<+h<<" ";
       for(auto hom : CalculateHomology(assembly_genotype))

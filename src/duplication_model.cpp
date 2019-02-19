@@ -136,6 +136,7 @@ namespace interface_model
       switch(assembly_information.size()) {
       case 0: //unbound
         pt->ClearIncomplete();
+        pid_interactions.clear();
         return {{UNBOUND_pid,1}};
         //case 3: //monomer
         //Phenotype_IDs.emplace_back(Phenotype_ID{1,0});

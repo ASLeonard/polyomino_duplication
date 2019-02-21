@@ -50,13 +50,13 @@ void GenotypeInsertion(Genotype& genotype) {
 }
 
 size_t GenotypeDuplication(Genotype& genotype) {
-  const size_t dup_gene= std::uniform_int_distribution<size_t>(0,genotype.size())(RNG_Engine)/4;
+  const size_t dup_gene= std::uniform_int_distribution<size_t>(0,genotype.size()/4-1)(RNG_Engine);
   genotype.insert(genotype.end(),genotype.begin()+4*dup_gene,genotype.begin()+4*dup_gene+4);
   return dup_gene;
 }
 
 size_t GenotypeDeletion(Genotype& genotype) {
-  const size_t del_gene= std::uniform_int_distribution<size_t>(0,genotype.size())(RNG_Engine)/4;
+  const size_t del_gene= std::uniform_int_distribution<size_t>(0,genotype.size()/4-1)(RNG_Engine)/4;
   genotype.erase(genotype.begin()+4*del_gene,genotype.begin()+4*del_gene+4);
   return del_gene;
 }
@@ -80,7 +80,6 @@ std::vector<uint8_t> CalculateHomology(const Genotype& genotype) {
   return homology;
 }
 
-
 Genotype StripMonomers(const Genotype genotype) {
   std::vector<bool> oligomers(genotype.size()/4);
   const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(genotype);
@@ -88,6 +87,24 @@ Genotype StripMonomers(const Genotype genotype) {
     oligomers[edge.first.first/4]=true;
     oligomers[edge.first.second/4]=true;
   }
+  Genotype fresh;
+  for(size_t nth = 0; nth < oligomers.size(); ++nth)
+    if(oligomers[nth])
+      fresh.insert(fresh.end(),genotype.begin()+nth*4,genotype.begin()+nth*4+4);
+  return fresh;
+}
+
+Genotype StripMonomers2(const Genotype genotype) {
+  std::vector<bool> oligomers(genotype.size()/4);
+  for(size_t f1=0;f1<genotype.size();++f1) {
+    for(size_t f2=f1;f2<genotype.size();++f2) {
+      if(interface_model::SammingDistance(genotype[f1],genotype[f2])<=InterfaceAssembly::samming_threshold) {
+        oligomers[f1/4]=true;
+        oligomers[f2/4]=true;
+      }
+    }
+  }
+
   Genotype fresh;
   for(size_t nth = 0; nth < oligomers.size(); ++nth)
     if(oligomers[nth])
@@ -117,6 +134,10 @@ namespace interface_model
       
     //InterfaceAssembly::StripNoncodingGenotype(binary_genome);
     Genotype genotype = StripMonomers(binary_genome);
+    Genotype genotype2 = StripMonomers2(binary_genome);
+    if(genotype!=genotype2)
+      std::cout<<"bad moo"<<"\n";
+    
     binary_genome=genotype;
     if(genotype.empty())
       return {{Phenotype_ID{1,0},1}};

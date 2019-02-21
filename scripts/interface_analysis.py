@@ -220,7 +220,7 @@ def norm_rows(a):
 
 import matplotlib.colors as mpc
 import numpy.ma as ma
-def plotHom(run,L,norm=True):
+def plotHom(run,L,norm=True,anno=False):
 
      f,axes=plt.subplots(2,1,sharex=True)
      for ax,func in zip(axes,('Zomology','Strengths')):
@@ -245,11 +245,37 @@ def plotHom(run,L,norm=True):
      axes[1].set_ylabel('Strength')
      
      f.colorbar(px,ax=axes)
+     if anno:
+          
+          annotes=lls(run)
+          ax=axes[0]
+          for pid,details in annotes.items():
+               for edge in details[2:]:
+                    ax.scatter(details[0],edge[2],c=[cm.tab20((edge[0]%4*4+edge[1]%4)/16)])
      plt.show(block=False)
+
+def lls(run):
+     lines=[line.rstrip() for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Evo_Run{}.txt'.format(run))]
+     d={}
+     for l in lines:
+          parts=l.split()
+          
+          d[tuple(int(i) for i in parts[:2])]=tuple(int(i) for i in parts[2:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)])
+     return d
+
+def scatL(run):
+     data=lls(run)
+
+     plt.figure()
+     for pid,details in data.items():
+          for edge in details[2:]:
+               plt.scatter(edge[2],edge[3],c=[cm.tab20((edge[0]%4*4+edge[1]%4)/16)])
      
+     plt.show(block=False)
+                                        
      
 def lazy(run,style='S'):
-     add_selection_layer(plotPhen2(LoadPIDHistory(run)),LSHB(run,100),run,style)
+     add_selection_layer(plotPhen2(LoadPIDHistory(run)),LSHB(run,250),run,style)
      
 def Int(run,g,c):
      return [line.rstrip() for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Interactions_Run{}.txt'.format(run))][g].split('.')[c]

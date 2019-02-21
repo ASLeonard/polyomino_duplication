@@ -70,7 +70,7 @@ void EvolvingHomology() {
     
 }
 
-uint32_t DiscoveryInteraction(bool self_interaction) {
+uint32_t DiscoverInteraction(bool self_interaction) {
   Genotype g(2);
   RandomiseGenotype(g);
   interface_type  geno1=g[0],geno2=g[1];
@@ -190,28 +190,28 @@ void EvolutionRunner() {
   }
 }
 
-void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::map<Phenotype_ID, std::map<std::pair<size_t,size_t>, size_t> >& Homology_tracker,size_t a, size_t b,std::map<Phenotype_ID,uint16_t> mm, std::map<Phenotype_ID, std::map<InteractionPair,uint16_t> > mx) {
+void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::map<Phenotype_ID, std::tuple< size_t,size_t, std::vector<std::tuple<InteractionPair, size_t, size_t,double> > > >& Homology_tracker,size_t a, size_t b,std::map<Phenotype_ID,uint16_t> mm, std::map<Phenotype_ID, std::map<InteractionPair,uint16_t> > mx) {
   //shift all observations 1 generation down
   for(auto& kv : PG.PID_tracker) {
     kv.second.front()=false;
-    std::rotate(kv.second.begin()+1,kv.second.begin(),kv.second.end());
+    std::rotate(kv.second.begin(),kv.second.begin()+1,kv.second.end());
   }
 
   //increment tracking for all pids, store original discovery for new ones
   for(const auto& pid : PG.pids) {
     if(pid==UNBOUND_pid || pid==NULL_pid || pid==Phenotype_ID{1,0})
       continue;
+    if(PG.PID_deet.find(pid)==PG.PID_deet.end()) {
+      for(auto edge : mx[pid]) {
+        const auto hom = (PG.subunits[edge.first.first] ^ PG.subunits[edge.first.second]).count();
+        const auto str = interface_model::SammingDistance(PG.subunits[edge.first.first], PG.subunits[edge.first.second]);
+        PG.PID_deet[pid].emplace_back(edge.first,hom,str,edge.second*1./mm[pid]);
+      }
+    }
+      
     if(PG.PID_tracker.find(pid)==PG.PID_tracker.end()) {
-      size_t qa=0;
-      for(auto mn : mx[pid])
-        qa+=mn.second;
-
-      if((qa*1./mm[pid]-qa/mm[pid])>.05) {
-        std::cout<<"Here now: "<<+pid.first<<", "<<+pid.second<<" cc "<<mm[pid]<<" & "<<qa<<"\n";
-        for(auto mn : mx[pid])
-          std::cout<<+mn.first.first<<", "<<+mn.first.second<<" = "<<mn.second<<"\n";
-          }
-      PG.PID_info[pid]={{mm[pid],qa},3}; //generation, population index, homology
+      PG.PID_tracker[pid]={};//resize(PG.PID_depth);
+      PG.PID_info[pid]={{a,b},3}; //generation, population index, homology
     }
     PG.PID_tracker[pid].back()=true;
   }
@@ -220,16 +220,23 @@ void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::map<Phenotype_ID, std:
   for(auto iter = PG.PID_tracker.begin(); iter!=PG.PID_tracker.end();) {
     if(std::find(iter->second.begin(),iter->second.end(),true)!=iter->second.end()) 
       ++iter;
-    else 
+    else {
+      PG.PID_info.erase(iter->first);
+      PG.PID_deet.erase(iter->first);
       iter=PG.PID_tracker.erase(iter);
+    }
   }
     
   //Record homology for "successful" observations
   if(PG.PID_tracker.size()==1 && std::accumulate(PG.PID_tracker.begin()->second.begin(),PG.PID_tracker.begin()->second.end(),0)==PG.PID_depth) {
     const auto pid= PG.PID_tracker.begin()->first;
     if(Homology_tracker.find(pid)==Homology_tracker.end()) {
-      Homology_tracker[pid][PG.PID_info[pid].first]=PG.PID_info[pid].second;
+
+      Homology_tracker[pid] = {PG.PID_info[pid].first.first,PG.PID_info[pid].first.second,PG.PID_deet[pid]};
+        //[PG.PID_info[pid].first]=PG.PID_info[pid].second;
       std::cout<<"homology added for "<<pid<<" at "<<+PG.PID_info[pid].first.first<<", "<<+PG.PID_info[pid].first.second<<"\n";
+      for(auto x : PG.PID_deet[pid])
+        std::cout<<"E: "<<+std::get<0>(x).first<<"~"<<+std::get<0>(x).second<<" h: "<<std::get<1>(x)<<" s: "<<std::get<2>(x)<<" f: "<<std::get<3>(x)<<"\n";
     }
   }
   
@@ -253,8 +260,11 @@ void EvolvePopulation(std::string run_details) {
   std::ofstream fout_phenotype_IDs(file_base_path+"PIDs"+file_simulation_details,std::ios::out );
   std::ofstream fout_size(file_base_path+"Size"+file_simulation_details,std::ios::out );
   std::ofstream fout_size2(file_base_path+"Fize"+file_simulation_details,std::ios::out );
+
+  std::ofstream fout_evo(file_base_path+"Evo"+file_simulation_details,std::ios::out );
   
-  std::map<Phenotype_ID, std::map<std::pair<size_t,size_t>, size_t> > evolution_record;
+  //std::map<Phenotype_ID, std::map<std::pair<size_t,size_t>, size_t> > evolution_record;
+  std::map<Phenotype_ID, std::tuple< size_t,size_t, std::vector<std::tuple<InteractionPair, size_t, size_t,double> > > > evolution_record;
     
   std::vector<double> population_fitnesses(simulation_params::population_size);
   std::vector<PopulationGenotype> evolving_population(simulation_params::population_size),reproduced_population;
@@ -289,28 +299,33 @@ void EvolvePopulation(std::string run_details) {
 
     uint16_t nth_genotype=0;
     for(PopulationGenotype& evolving_genotype : evolving_population) { /*! GENOTYPE LOOP */
+      //evolving_genotype.subunits=evolving_genotype.genotype;
       const size_t gs=evolving_genotype.genotype.size();
       if(gs==0) {
         std::cout<<"NULL GENOTYPE AT START OF GENERATION"<<"\n";
+        std::cout<<"gen "<<generation<<" nth "<<nth_genotype<<"\n";
         return;
       }
       size_t holder=InterfaceAssembly::Mutation(evolving_genotype.genotype,1,1,1);
             
-      //const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(evolving_genotype.genotype);
 
       Genotype assembly_genotype=evolving_genotype.genotype;
-      //fout_size2<<assembly_genotype.size()/4<<" ";
-      const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(evolving_genotype.genotype);
+
+      
+      
+
+
+      std::map<Phenotype_ID, std::map<InteractionPair,uint16_t> > pid_interactions;
+
+      
+      auto pid_map=interface_model::PolyominoAssemblyOutcome(assembly_genotype,&pt,pid_interactions);
+      
+      const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(assembly_genotype);
       for(auto edge : edges)
         fout_interactions2<<+edge.first.first<<" "<<+edge.first.second<<" ";
       fout_interactions2<<",";
       
-
-      std::vector<uint8_t> homologies;
-      std::map<Phenotype_ID, std::map<InteractionPair,uint16_t> > pid_interactions;
-      //std::map<Phenotype_ID,std::set<InteractionPair>> pid_interactions;
-      auto pid_map=interface_model::PolyominoAssemblyOutcome(assembly_genotype,&pt,pid_interactions);
-      
+      evolving_genotype.subunits=assembly_genotype;
       switch(pid_map.begin()->first.first) {
       case 255:
         population_fitnesses[nth_genotype]=0;
@@ -333,70 +348,40 @@ void EvolvePopulation(std::string run_details) {
       }
       fout_phenotype_IDs<<",";
 
-      const size_t pax = evolution_record.size();
+      //const size_t pax = evolution_record.size();
       UpdatePhylogenyTrackers(evolving_genotype,evolution_record,generation,nth_genotype,pid_map,pid_interactions);
+
+      /*
       std::set<InteractionPair> unique_interactions;
       for(auto& kv : pid_interactions) {
         fout_interactions<<+kv.first.first<<" "<<+kv.first.second<<" "; //pids
-        //for(auto& inters : kv.second) {
-        //  fout_interactions<<+inters.first<<" "<<+inters.second<<" "; //interactions
-        //  unique_interactions.insert(inters);
-        //}
         fout_interactions<<",";
       }
       fout_interactions<<".";
-      for(auto& IP : unique_interactions) {
-        fout_strength<<+interface_model::SammingDistance(assembly_genotype[IP.first],assembly_genotype[IP.second])<<" ";
-        //if(IP.first == IP.second)
-        //  fout_yomology<<"0 ";
-        //else
-        //  fout_yomology<<+(assembly_genotype[IP.first]^assembly_genotype[IP.second]).count()<<" ";
-      }
+      */
+
       
       for(const auto& pid_kv : pid_interactions) {
         for(const auto& ints_kv : pid_kv.second) {
-          //std::cout<<"hi"<<std::endl;
           auto IP = ints_kv.first;
           bvx[(assembly_genotype[IP.first]^assembly_genotype[IP.second]).count()]+=ints_kv.second;
           bvy[interface_size-interface_model::SammingDistance(assembly_genotype[IP.first],assembly_genotype[IP.second])]+=ints_kv.second;
         }
       }
-      if(!pid_interactions.empty()) {
-      uint16_t sizx=0;
-      Phenotype_ID pid_m=pid_interactions.rbegin()->first;
-      if(pid_m.first==0)
-        std::cout<<"??"<<"\n";
-      for(auto uk : pid_interactions[pid_m]) {
-          sizx+=uk.second;
-      }
-      fout_size2<<sizx*1./pid_map[pid_m]<<" ";
-      if(evolution_record.size()!=pax)
-        std::cout<<"ratio "<<sizx*1./pid_map[pid_m]<<"\n";
-      }
-      //for(auto h : homologies)
-      //  fout_homology<<+h<<" ";
+      
+
+
+      /*
       for(auto hom : CalculateHomology(assembly_genotype))
         fout_homology<<+hom<<" ";
       fout_homology<<",";
-
+      */
+      
       fout_mutation<<holder<<" ";
       fout_size<<assembly_genotype.size()/4<<" ";
       
-
-        
-        
-      //pIDs[2*nth_genotype]=evolving_genotype.pid.first;
-      //pIDs[2*nth_genotype+1]=evolving_genotype.pid.second;
-
       ++nth_genotype;
       
-
-
-
-      //for(auto x : pid_interactions)
-      //  fout_strength<<+x.first<<" "<<+x.second<<" "<<+interface_model::SammingDistance(assembly_genotype[x.first],assembly_genotype[x.second])<<".";
-      //fout_strength<<",";
-      //fout_phenotype_IDs << +evolving_genotype.pid.first <<" "<<+evolving_genotype.pid.second<<" ";
       
     } /*! END GENOTYPE LOOP */
 
@@ -415,17 +400,17 @@ void EvolvePopulation(std::string run_details) {
     BinaryWriter(fout_zomology,bvx);
     BinaryWriter(fout_strength,bvy);
 
+    
+
 
     
     //fout_strength<<"\n";
     fout_mutation<<"\n";
-    fout_homology<<"\n";
     fout_phenotype_IDs<<"\n";
     fout_size<<"\n";
-    fout_size2<<"\n";
-    fout_interactions<<"\n";
+    //fout_interactions<<"\n";
     fout_interactions2<<"\n";
-    fout_yomology<<"\n";
+    //fout_yomology<<"\n";
 
     
     //fout_selection_history<<"\n";
@@ -436,6 +421,13 @@ void EvolvePopulation(std::string run_details) {
   } /* END EVOLUTION LOOP */
   //for(auto x : evolving_population)
   //  std::cout<<x.genotype.size()<<"\n";
+  for(auto kv : evolution_record) {
+    fout_evo<<+kv.first.first<<" "<<+kv.first.second<<" "<<std::get<0>(kv.second)<<" "<<std::get<1>(kv.second)<<" ";
+      for(auto pv : std::get<2>(kv.second))
+        fout_evo<<+std::get<0>(pv).first<<" "<<+std::get<0>(pv).second<<" "<<+std::get<1>(pv)<<" "<<+std::get<2>(pv)<<" "<<std::get<3>(pv)<<" ";
+      fout_evo<<"\n";
+    }
+  
   pt.PrintTable(fname_phenotype);
   
 }

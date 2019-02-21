@@ -12,13 +12,14 @@ namespace simulation_params
 }
 
 struct PopulationGenotype {
-  static constexpr size_t PID_depth=10;
-  Genotype genotype;
+  static constexpr size_t PID_depth=20;
+  Genotype genotype, subunits;
   std::vector<Phenotype_ID> pids;
-  std::map<Phenotype_ID, std::array<bool, PID_depth> > PID_tracker;
+  std::map<Phenotype_ID, std::array<bool,PID_depth> > PID_tracker;
   std::map<Phenotype_ID, std::pair<std::pair<size_t,size_t>, size_t> > PID_info;
+  std::map<Phenotype_ID, std::vector<std::tuple<InteractionPair,size_t,size_t,double> > > PID_deet;
 
-  PopulationGenotype(void) : genotype(simulation_params::n_tiles*4) {RandomiseGenotype(genotype);};
+  PopulationGenotype(void) : subunits(simulation_params::n_tiles*4) {genotype.resize(simulation_params::n_tiles*4); RandomiseGenotype(genotype);};
   
 };
 

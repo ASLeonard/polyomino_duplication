@@ -20,11 +20,11 @@ OBJEXT      := o
 #VPATH=src:polyomino/src
 
 #Flags, Libraries and Includes
-CXXFLAGS    := -std=gnu++2a -Wall -Wextra -pedantic -pipe -march=haswell -flto -flto-partition=none -no-pie -ffunction-sections -fdata-sections $(cmdflag)
+CXXFLAGS    := -std=gnu++2a -Wall -Wextra -pedantic -pipe -march=haswell -no-pie $(cmdflag)
 ifndef DEBUG
-CXXFLAGS += -O3 -fopenmp
+CXXFLAGS += -O3 -fopenmp -flto -flto-partition=none -ffunction-sections -fdata-sections
 else
-CXXFLAGS += -pg -ggdb
+CXXFLAGS += -g3 -O0
 endif
 
 INC         := -I$(INCDIR) -I$(LIBDIR)/$(INCDIR)

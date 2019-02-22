@@ -246,12 +246,14 @@ def plotHom(run,L,norm=True,anno=False):
      
      f.colorbar(px,ax=axes)
      if anno:
-          
           annotes=lls(run)
           ax=axes[0]
+          fixed_pids={tuple(i) for i in getFixedPhenotypes(LoadPIDHistory(run))}
           for pid,details in annotes.items():
+               alph=1 if pid in fixed_pids else .2
+                    
                for edge in details[2:]:
-                    ax.scatter(details[0],edge[2],c=[cm.tab20((edge[0]%4*4+edge[1]%4)/16)])
+                    ax.scatter(details[0],edge[2],c=[cm.tab20((edge[0]%4*4+edge[1]%4)/16)],alpha=alph)
      plt.show(block=False)
 
 def lls(run):
@@ -262,6 +264,15 @@ def lls(run):
           
           d[tuple(int(i) for i in parts[:2])]=tuple(int(i) for i in parts[2:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)])
      return d
+
+def getFixedPhenotypes(pids):
+     def perGeneration(pid_slice):
+          cc=Counter(list(chain.from_iterable(pid_slice.flat)))
+          for bad_pid in ((0,0),(255,0)):
+               if bad_pid in cc:
+                    del cc[bad_pid]
+          return max(cc, key=lambda key: cc[key])
+     return np.apply_along_axis(perGeneration,1,pids)
 
 def scatL(run):
      data=lls(run)
@@ -382,27 +393,21 @@ def add_duplication_layer(ax):
      
 
      
-     
-def plotPhen(pids_raw,thresh=0.25):
-     pids=ObjArray([[tuple(i) for i in row] for row in pids_raw])
-     ref_pids=list(np.unique(pids))
-     flat_list = [item for sublist in ref_pids for item in sublist]
-     unique_pids=list(set(flat_list))
+from itertools import chain     
+def plotPhen(pids_raw,run,thresh=0.25):
+     pids=pids_raw#ObjArray([[tuple(i) for i in row] for row in pids_raw])
 
+     unique_pids=[(0,0),(1,0),(255,0)]+list(LoadPhenotypeTable(run).keys())
      gens,pop_size=pids_raw.shape
 
      gen_counts={K:[0]*gens for K in unique_pids}
      for i,row in enumerate(pids):
-          for indv in row:
-               for pid in indv:
-                    if pid in gen_counts:
-                         gen_counts[pid][i]+=1
+          for pid in chain.from_iterable(row.flat):
+               gen_counts[pid][i]+=1
 
      
      plt.figure()
      
-    
-
      for k,v in gen_counts.items():
           if max(v)<pop_size*thresh:
                continue

@@ -7,7 +7,7 @@ use autodie;
 
 my $HOME_DIR = "/scratch/asl47/PDB";
 
-open (my $f_homomers, "<", "${HOME_DIR}/HOMOMERS.txt");
+open (my $f_homomers, "<", "${HOME_DIR}/Hets2.txt");
 
 my @structures = <$f_homomers>;
 shift @structures;
@@ -17,6 +17,7 @@ while(my $line = shift @structures) {
     {
       local @ARGV = split(' ', $line, 3);
       splice(@ARGV,1,1);    
+      ${ARGV[1]}=0;
       do './dimer_analysis.pl';
     }
 

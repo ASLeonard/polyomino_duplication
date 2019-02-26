@@ -20,178 +20,7 @@ import matplotlib.cm as cm
 #GLOBAL PIDS
 null_pid,init_pid=np.array([0,0],dtype=np.uint8),np.array([1,0],dtype=np.uint8)
 
-def parallelAnalysis(S_star,t,mu,gamma,runs,offset=0,run_code='F'):
-     setBasePath('scratch')
-     chosen_function=analysePhylogenetics if run_code=='F' else analyseHomogeneousPopulation
-     pool = Pool()
-     data_struct=pool.map(partial(chosen_function, S_star,t,mu,gamma), range(offset,offset+runs)) 
-     pool.close()
-     if run_code=='F':
-          dump(data_struct, open('Y{}T{}Mu{}J{}K{}L{}O{}.pkl'.format(mu,S_star,t,gamma,offset), 'wb'))
-     else:
-          np.savez_compressed('Mu{}Y{}T{}F{}O{}'.format(mu,S_star,t,gamma,offset),data_struct)
-          
 
-
-def collateAnalysis(params,runs):
-     N_samps=10
-     full_data=[]
-     for r in runs:
-          try:
-               full_data.append(load(open('Y{}T{}Mu{}J{}K{}L{}O{}.pkl'.format(*params+(r,)), 'rb')))
-          except:
-               print('missing pickle for run ',r)
-     N_runs=0
-     full_transition=defaultdict(lambda: defaultdict(int))
-
-     for phen_tran in filter(None,full_data):
-          N_runs+=1
-          for (phen_in,phen_out),count in phen_tran.items():
-               full_transition[phen_in][phen_out]+=count
-          
-     return (N_runs,convertDoubleNestedDict(full_transition))
-     
-def convertRaggedArray(list_of_lists):
-     long_length=sorted([len(lis) for lis in list_of_lists],reverse=True)[len(list_of_lists)//2]
-     rect_arr=np.empty((len(list_of_lists),long_length))
-     for i,strs in enumerate(list_of_lists):
-          rect_arr[i]=strs[:long_length]+[np.nan]*(long_length-len(strs[:long_length]))
-     return rect_arr
-
-def analysePhylogenetics(run,params,full_pIDs=False):
-     #s,p,st,phen_table=LoadAll(run,params)
-     s=LSHB(run,params)
-     p=LPB(run,params)
-     phen_table=LoadPhenotypeTable(run)
-     phen_table[(2,2)]=(2,1,1,9)
-     transitions=KAG(p,s)
-     if not transitions:
-          print("Empty run at {}".format(run))
-          return None
-          
-     if full_pIDs:
-          transitions={(phen_table[k[0]],phen_table[k[1]]):cnt for k,cnt in transitions.items()}
-     return transitions
-     transitions=ret_val[1]
-     failed_transitions=ret_val[2]
-     bond_data=treeBondStrengths(ret_val[0],st)
-     if full_pIDs:
-          transitions={(phen_table[k[0]],phen_table[k[1]]):cnt for k,cnt in transitions.items()}
-          failed_transitions={(phen_table[k[0]],phen_table[k[1]]):cnt for k,cnt in failed_transitions.items()}
-          bond_data={phen_table[k]:v for k,v in bond_data.items()}
-     return (bond_data,transitions,failed_transitions)
-
-class Tree(object):
-     __slots__ = ('pID','bonds','new_bond','gen','seq')
-     def __init__(self,pid=None,bonds=None,new_bond=None,gen=None,seq=None):
-          self.pID=pid
-          self.bonds=bonds
-          self.new_bond=new_bond
-          self.gen=gen
-          self.seq=seq
-     def __repr__(self):
-          return '{},{}'.format(self.pID,self.gen)
-          
-def KAG(phenotypes_in,selections):
-     phenotypes=phenotypes_in.copy()
-     max_gen,pop_size=selections.shape
-     
-     forest,temp_forest=[],[]
-     transitions=defaultdict(int)
-
-     def __growDescendentTree(tree,max_depth=float('inf')):
-          gen_val=tree.gen
-          descendents=tree.seq[0]
-          while gen_val<(max_gen-1):
-               
-               new_descendents=[]
-               for descendent in descendents:
-                    new_descendents.extend([child for child in np.where(selections[gen_val]==descendent)[0] if np.array_equal(phenotypes_in[gen_val+1,child],tree.pID)])
-
-               if math.isinf(max_depth):
-                    phenotypes[gen_val,descendents]=null_pid
-                                   
-               if not new_descendents:
-                    break
-               if (gen_val-tree.gen)>=max_depth:
-                    return True
-               descendents=new_descendents
-               tree.seq.append(descendents)
-               gen_val+=1
-          else:
-               phenotypes[gen_val,descendents]=null_pid
-                              
-     def __addBranch():
-
-          pid_ref=phenotypes_in[g_idx,c_idx]
-
-          transitions[tuple(tuple(_) for _ in (pid_ref,init_pid if g_idx==0 else phenotypes_in[g_idx-1,p_idx]))]+=1
-
-          temp_forest.append((True,Tree(pid_ref,0,0,g_idx,[[c_idx]])))
-
-          return True 
-               
-     for C_INDEX in range(pop_size):
-          if np.array_equal(phenotypes[max_gen-1,C_INDEX],null_pid):
-               continue
-          
-          c_idx=C_INDEX
-          g_idx=max_gen-1
-          p_idx=selections[g_idx-1,c_idx]
-          pid_ref=phenotypes[max_gen-1,c_idx]
-         
-          
-          while g_idx>0:
-               if np.array_equal(phenotypes[g_idx-1,p_idx],null_pid):
-                    if np.array_equal(phenotypes_in[g_idx-1,p_idx],pid_ref):
-                         temp_forest.append((False,Tree(pid_ref,0,(-1,-1),g_idx,[[c_idx]])))
-                    else:
-                         if not __addBranch():
-                              return None
-                         break
-               
-               elif not np.array_equal(phenotypes[g_idx-1,p_idx],pid_ref):
-                    if not __addBranch():
-                         return None
-                    pid_ref=phenotypes[g_idx-1,p_idx]
-                    
-          
-               g_idx-=1
-               c_idx=p_idx
-               p_idx=selections[g_idx-1,p_idx]
-          else:
-               if not np.array_equal(pid_ref,init_pid) and not __addBranch():
-                    return None
-          
-          while temp_forest:
-               (alive,tree)=temp_forest.pop()
-               __growDescendentTree(tree)
-               if alive:
-                    forest.append(tree)  
-
-     return dict(transitions)
-     
-def treeBondStrengths(KAG,interactions):
-     bond_data=defaultdict(list)
-     for tree in KAG: 
-          bond_maps=defaultdict(list)
-          max_pop=0
-          for generation,populations in enumerate(tree.seq,tree.gen):
-               if len(populations)<(max_pop//10) and max_pop>(interactions.shape[1]//10):
-                    #print(len(populations),max_pop)
-                    break
-               max_pop=max(max_pop,len(populations))
-               inner_bond_maps=defaultdict(list)
-               for species in populations:
-                    all_bonds=interactions[generation,species].bonds
-                    new_bond_type=getBondType(tree.new_bond,all_bonds)
-                    for bond,strength in interactions[generation,species]:
-                         inner_bond_maps[(getBondType(bond,all_bonds),new_bond_type)+bond].append(strength)
-
-               for k,v in inner_bond_maps.items():
-                    bond_maps[k].append(np.mean(v))
-          bond_data[tuple(tree.pID)].append((tree.gen,dict(bond_maps)))
-     return dict(bond_data)     
 
 def plotBs(a):
      plt.figure()
@@ -248,9 +77,9 @@ def plotHom(run,L,norm=True,anno=False):
      if anno:
           annotes=lls(run)
           ax=axes[0]
-          fixed_pids={tuple(i) for i in getFixedPhenotypes(LoadPIDHistory(run))}
+          fixed_pids=[]#{tuple(i) for i in getFixedPhenotypes(LoadPIDHistory(run))}
           for pid,details in annotes.items():
-               alph=1 if pid in fixed_pids else .2
+               alph=1 if pid in fixed_pids else 1
                     
                for edge in details[2:]:
                     ax.scatter(details[0],edge[2],c=[cm.tab20((edge[0]%4*4+edge[1]%4)/16)],alpha=alph)
@@ -264,6 +93,53 @@ def lls(run):
           
           d[tuple(int(i) for i in parts[:2])]=tuple(int(i) for i in parts[2:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)])
      return d
+
+def orderedOcc(runs):
+     f,ax=plt.subplots()
+     for r in runs:
+          occ=defaultdict(list)
+          dp={v[0]:v[2:] for v in lls(r).values()}
+          for v in dp.values():
+               for edge in v:
+                    occ[tuple(e%4 for e in edge[:2])].append(edge[2])
+
+          for oc in occ.values():
+               c='r' if oc[0]<40 else 'k'
+               if len(oc)>10:
+                    print(r)
+               if len(oc)>1:
+                    ax.plot(oc,marker='o',c=c)
+               else:
+                    ax.scatter([0],oc,c=c)
+     plt.show(block=False)
+     
+def orderedOcc2(runs):
+     f,ax=plt.subplots()
+     points=[]
+     for r in runs:
+          for k,v in lls(r).items():
+               for edge in v[2:]:
+                    points.append((v[0],edge[2]))
+     d=np.asarray(points)
+     plt.scatter(*d.T)
+
+#dp={v[0]:v[2:] for v in lls(r).values()}
+#          for v in dp.values():
+ #              for edge in v:
+  #                  occ[tuple(e%4 for e in edge[:2])].append(edge[2])
+
+   #       for oc in occ.values():
+    #           c='r' if oc[0]<40 else 'k'
+     #          if len(oc)>10:
+      #              print(r)
+       #        if len(oc)>1:
+        #            ax.plot(oc,marker='o',c=c)
+         #      else:
+          #          ax.scatter([0],oc,c=c)
+     plt.show(block=False)
+          
+
+
 
 def getFixedPhenotypes(pids):
      def perGeneration(pid_slice):
@@ -442,57 +318,4 @@ def consecutiveRanges(data):
 def allUniqueBonds(bonds):
      seen = set()
      return not any(i in seen or seen.add(i) for i in list(sum(bonds, ())))
-
-def writeIt():
-     np.savez_compressed('/rscratch/asl47/Pickles/test.npy',[a,b])
-
-     
-               
-def main(argv):
-     model_type=int(argv[2])
-     if argv[1]=='internal':
-          
-          HPC_FLAG=argv[3]=='1'
-          run=int(argv[4])
-          format_params=tuple(float(i) for i in argv[5:11])
-          run_params=int(argv[11])# if HPC_FLAG else format_params
-          
-          if model_type==1 or model_type==0:
-               with open('Y{}T{}Mu{}J{}K{}L{}O{}.pkl'.format(*format_params+(run,)),'wb') as f:
-                    dump(analysePhylogenetics(run,run_params,1),f)
-               for used_file in glob.glob('*Run{}*'.format(run)):
-                    pass
-                    #os.remove(used_file)
-                    
-          else:
-               print("hi")
-
-     elif argv[1]=='external':
-          format_params=tuple(float(i) for i in argv[3:9])
-          file_pth='/rscratch/asl47/Pickles/Y{}T{}Mu{}J{}K{}L{}'.format(*format_params)
-          run_gen=range(int(argv[9]))
-          if model_type==1 or model_type==0:
-               with open(file_pth+'.pkl', 'wb') as f:
-                    dump(collateAnalysis(format_params,runs=run_gen), f)
-          else:
-               print("hi")
-     else:
-          print('unknown')
-                       
-     return
-
-if __name__ == '__main__':
-    main(argv)
-
-def PhenotypicTransitions(phen_trans,N=40,crit_factor=0.5):
-     common_transitions=deepcopy(phen_trans)
-     for phen_key,trans in phen_trans.items():
-          for tran,count in trans.items():
-               if count<N*crit_factor:
-                    del common_transitions[phen_key][tran]
-
-     for key in common_transitions.keys():
-          if not common_transitions[key]:
-               del common_transitions[key]
-     return common_transitions
 

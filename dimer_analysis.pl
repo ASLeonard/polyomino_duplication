@@ -10,6 +10,7 @@ my $HOME_DIR = "/scratch/asl47/PDB";
 my $WATER_EXEC = "/rscratch/asl47/water";
 my $NEEDLE_EXEC = "/rscratch/asl47/needle";
 my $FREESASA_EXEC = "/rscratch/asl47/freesasa";
+my $TM_EXEC = "/rscratch/asl47/TMalign";
 
 system("mkdir -p $HOME_DIR/results");
 
@@ -92,20 +93,15 @@ try {
         #print "CHN: " . @chain_id[3] . "\n";
 
     }
-    my $subfolder = $HOMOMER == 1 ? 'homodimer' : 'heterodimer';
+    my $subfolder = $HOMOMER == 1 ? 'homodimer' : 'heterodimer2';
     my $results = "${HOME_DIR}/results/${subfolder}/${pdb_id}_${BA_id}.results";
     system("echo ${HOMOMER} > ${results}"); 
     #print "LENGTH " . scalar @chains . "\n";
-    if(scalar @chains != 2)
-    {
+    if(scalar @chains != 2) {
         print "Bad length \n";
-        goto OUTERLOOP;
-        
+        goto OUTERLOOP; 
     }
-        
-
-
-    
+           
     if($HOMOMER) {
         if($chains[0] ne $chains[1]) { 
             #print "Multi chain homomer\n";
@@ -114,8 +110,6 @@ try {
 
         }
         else {
-            #print "One chain homomer\n";
-            #print "CH " . $chains[0] . "\n";
             system("${WATER_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");
             system("${FREESASA_EXEC} ${HOME_DIR}/${pdb_id}.pdb${BA_id} --join-models | grep Total >> ${results}");  
             system("${FREESASA_EXEC} ${HOME_DIR}/${pdb_id}.pdb${BA_id} --separate-models | grep Total >> ${results}"); 
@@ -125,8 +119,11 @@ try {
         #print "Heteromer\n";
 	system("${NEEDLE_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[1]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");
         system("${WATER_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[1]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");
-	
-        system("${FREESASA_EXEC} ${HOME_DIR}/${pdb_id}.pdb${BA_id} --chain-group=${chains[0]}${chains[1]}+${chains[0]}+${chains[1]} | grep Total | tail +2 >> ${results}");   
+    
+        #system("${FREESASA_EXEC} ${HOME_DIR}/${pdb_id}.pdb${BA_id} --chain-group=${chains[0]}${chains[1]}+${chains[0]}+${chains[1]} | grep Total | tail +2 >> ${results}");   
+        system("~/Documents/PolyDev/duplication/hom.py ${pdb_id} ${BA_id} ${chains[0]} ${chains[1]}");
+ 
+        system("${TM_EXEC} ${HOME_DIR}/${pdb_id}_${chains[0]}.pdb ${HOME_DIR}/${pdb_id}_${chains[1]}.pdb -a | grep TM-score= | tail +3 >> ${results}");
     }
 } catch {
     warn "ID ${pdb_id} caught error: $_";

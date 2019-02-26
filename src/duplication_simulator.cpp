@@ -234,9 +234,9 @@ void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::map<Phenotype_ID, std:
 
       Homology_tracker[pid] = {PG.PID_info[pid].first.first,PG.PID_info[pid].first.second,PG.PID_deet[pid]};
         //[PG.PID_info[pid].first]=PG.PID_info[pid].second;
-      std::cout<<"homology added for "<<pid<<" at "<<+PG.PID_info[pid].first.first<<", "<<+PG.PID_info[pid].first.second<<"\n";
-      for(auto x : PG.PID_deet[pid])
-        std::cout<<"E: "<<+std::get<0>(x).first<<"~"<<+std::get<0>(x).second<<" h: "<<std::get<1>(x)<<" s: "<<std::get<2>(x)<<" f: "<<std::get<3>(x)<<"\n";
+      //std::cout<<"homology added for "<<pid<<" at "<<+PG.PID_info[pid].first.first<<", "<<+PG.PID_info[pid].first.second<<"\n";
+      //for(auto x : PG.PID_deet[pid])
+      //  std::cout<<"E: "<<+std::get<0>(x).first<<"~"<<+std::get<0>(x).second<<" h: "<<std::get<1>(x)<<" s: "<<std::get<2>(x)<<" f: "<<std::get<3>(x)<<"\n";
     }
   }
   
@@ -249,21 +249,37 @@ void EvolvePopulation(std::string run_details) {
   std::string file_simulation_details=run_details+".txt";
     
   std::ofstream fout_strength(file_base_path+"Strengths"+file_simulation_details,std::ios::binary);
-  std::string fname_phenotype(file_base_path+"PhenotypeTable"+file_simulation_details);  
-  std::ofstream fout_selection_history(file_base_path+"Selections"+file_simulation_details,std::ios::out);
-  std::ofstream fout_interactions(file_base_path+"Interactions"+file_simulation_details,std::ios::out);
-  std::ofstream fout_interactions2(file_base_path+"Binteractions"+file_simulation_details,std::ios::out);
-  std::ofstream fout_mutation(file_base_path+"Mutation"+file_simulation_details,std::ios::out); 
-  std::ofstream fout_homology(file_base_path+"Homology"+file_simulation_details,std::ios::out);
-  std::ofstream fout_yomology(file_base_path+"Yomology"+file_simulation_details,std::ios::out);
   std::ofstream fout_zomology(file_base_path+"Zomology"+file_simulation_details,std::ios::binary);
-  std::ofstream fout_phenotype_IDs(file_base_path+"PIDs"+file_simulation_details,std::ios::out );
-  std::ofstream fout_size(file_base_path+"Size"+file_simulation_details,std::ios::out );
-  std::ofstream fout_size2(file_base_path+"Fize"+file_simulation_details,std::ios::out );
-
   std::ofstream fout_evo(file_base_path+"Evo"+file_simulation_details,std::ios::out );
   
-  //std::map<Phenotype_ID, std::map<std::pair<size_t,size_t>, size_t> > evolution_record;
+  std::string fname_phenotype(file_base_path+"PhenotypeTable"+file_simulation_details);
+  
+  std::ofstream fout_selection_history, fout_phenotype_IDs, fout_size, fout_interactions2;
+
+  const bool FULL_WRITE=false;
+  if(FULL_WRITE) {
+    fout_selection_history.open(file_base_path+"Selections"+file_simulation_details,std::ios::binary);
+    fout_phenotype_IDs.open(file_base_path+"PIDs"+file_simulation_details,std::ios::out );
+    fout_size.open(file_base_path+"Size"+file_simulation_details,std::ios::out);
+    fout_interactions2.open(file_base_path+"Binteractions"+file_simulation_details,std::ios::out);
+    
+  }
+    //(file_base_path+"PIDs"+file_simulation_details,std::ios::out );;
+  //(file_base_path+"Size"+file_simulation_details,std::ios::out)
+  //(file_base_path+"Selections"+file_simulation_details,std::ios::out);
+  //std::ofstream fout_interactions(file_base_path+"Interactions"+file_simulation_details,std::ios::out);
+  //std::ofstream fout_interactions2(file_base_path+"Binteractions"+file_simulation_details,std::ios::out);
+  //std::ofstream fout_mutation(file_base_path+"Mutation"+file_simulation_details,std::ios::out); 
+  //std::ofstream fout_homology(file_base_path+"Homology"+file_simulation_details,std::ios::out);
+  //std::ofstream fout_yomology(file_base_path+"Yomology"+file_simulation_details,std::ios::out);
+
+  
+  //std::ofstream fout_size(file_base_path+"Size"+file_simulation_details,std::ios::out);
+  //std::ofstream fout_size2(file_base_path+"Fize"+file_simulation_details,std::ios::out );
+
+  
+  
+
   std::map<Phenotype_ID, std::tuple< size_t,size_t, std::vector<std::tuple<InteractionPair, size_t, size_t,double> > > > evolution_record;
     
   std::vector<double> population_fitnesses(simulation_params::population_size);
@@ -321,9 +337,7 @@ void EvolvePopulation(std::string run_details) {
       auto pid_map=interface_model::PolyominoAssemblyOutcome(assembly_genotype,&pt,pid_interactions);
       
       const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(assembly_genotype);
-      for(auto edge : edges)
-        fout_interactions2<<+edge.first.first<<" "<<+edge.first.second<<" ";
-      fout_interactions2<<",";
+      
       
       evolving_genotype.subunits=assembly_genotype;
       switch(pid_map.begin()->first.first) {
@@ -342,24 +356,12 @@ void EvolvePopulation(std::string run_details) {
 
       //Add pids to genotype
       evolving_genotype.pids.clear();
-      for(auto& kv : pid_map) {
+      for(auto& kv : pid_map)
         evolving_genotype.pids.emplace_back(kv.first);
-        fout_phenotype_IDs<<+kv.first.first<<" "<<+kv.first.second<<" ";
-      }
-      fout_phenotype_IDs<<",";
+      
+      
 
-      //const size_t pax = evolution_record.size();
       UpdatePhylogenyTrackers(evolving_genotype,evolution_record,generation,nth_genotype,pid_map,pid_interactions);
-
-      /*
-      std::set<InteractionPair> unique_interactions;
-      for(auto& kv : pid_interactions) {
-        fout_interactions<<+kv.first.first<<" "<<+kv.first.second<<" "; //pids
-        fout_interactions<<",";
-      }
-      fout_interactions<<".";
-      */
-
       
       for(const auto& pid_kv : pid_interactions) {
         for(const auto& ints_kv : pid_kv.second) {
@@ -368,20 +370,19 @@ void EvolvePopulation(std::string run_details) {
           bvy[interface_size-interface_model::SammingDistance(assembly_genotype[IP.first],assembly_genotype[IP.second])]+=ints_kv.second;
         }
       }
-      
-
-
-      /*
-      for(auto hom : CalculateHomology(assembly_genotype))
-        fout_homology<<+hom<<" ";
-      fout_homology<<",";
-      */
-      
-      fout_mutation<<holder<<" ";
-      fout_size<<assembly_genotype.size()/4<<" ";
-      
+           
       ++nth_genotype;
       
+      if(FULL_WRITE) {
+        for(auto& kv : pid_map) 
+          fout_phenotype_IDs<<+kv.first.first<<" "<<+kv.first.second<<" ";
+        for(auto edge : edges)
+          fout_interactions2<<+edge.first.first<<" "<<+edge.first.second<<" ";
+        fout_interactions2<<",";
+      
+        fout_phenotype_IDs<<",";
+        fout_size<<assembly_genotype.size()/4<<" ";
+      }
       
     } /*! END GENOTYPE LOOP */
 
@@ -391,31 +392,22 @@ void EvolvePopulation(std::string run_details) {
     auto reproducing_selection=RouletteWheelSelection(population_fitnesses);
     for(uint16_t selected : reproducing_selection) {
       reproduced_population[nth_repro++]=evolving_population[selected];
-      //fout_selection_history<<+selected<<" ";
     }
     evolving_population.swap(reproduced_population);
     
-    BinaryWriter(fout_selection_history,reproducing_selection);
-    //BinaryWriter(fout_phenotype_IDs,pIDs);
+    
     BinaryWriter(fout_zomology,bvx);
     BinaryWriter(fout_strength,bvy);
 
-    
+    if(FULL_WRITE) {
+      BinaryWriter(fout_selection_history,reproducing_selection);
+      fout_phenotype_IDs<<"\n";
+      fout_size<<"\n";
+      fout_interactions2<<"\n";
+    }
 
 
-    
-    //fout_strength<<"\n";
-    fout_mutation<<"\n";
-    fout_phenotype_IDs<<"\n";
-    fout_size<<"\n";
-    //fout_interactions<<"\n";
-    fout_interactions2<<"\n";
-    //fout_yomology<<"\n";
 
-    
-    //fout_selection_history<<"\n";
-    //fout_phenotype_IDs<<"\n";
-    //fout_strength<<"\n";
     
     
   } /* END EVOLUTION LOOP */

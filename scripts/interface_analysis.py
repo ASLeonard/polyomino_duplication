@@ -94,24 +94,57 @@ def lls(run):
           d[tuple(int(i) for i in parts[:2])]=tuple(int(i) for i in parts[2:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)])
      return d
 
-def orderedOcc(runs):
+from scipy import stats
+def orderedOcc(runs,axis_type=0):
      f,ax=plt.subplots()
+     data=[]
+     colours=[]
+     homhet_ratio=[0,0]
      for r in runs:
-          occ=defaultdict(list)
+          occ=defaultdict(int)
+          hom={}
           dp={v[0]:v[2:] for v in lls(r).values()}
-          for v in dp.values():
-               for edge in v:
-                    occ[tuple(e%4 for e in edge[:2])].append(edge[2])
+          for gen,v in dp.items():
+               combs={tuple(e%4 for e in edge[:2]) for edge in v}
 
-          for oc in occ.values():
-               c='r' if oc[0]<40 else 'k'
-               if len(oc)>10:
-                    print(r)
-               if len(oc)>1:
-                    ax.plot(oc,marker='o',c=c)
-               else:
-                    ax.scatter([0],oc,c=c)
+               
+               for edge in v:
+                    edge_pair=tuple(e%4 for e in edge[:2])
+                    color=''
+                    if edge_pair not in hom:
+                         hom[edge_pair]=edge[2]
+                    colours.append('r' if hom[edge_pair]==0 else 'k')
+                   
+                    data.append([gen,occ[edge_pair],edge[2]])
+                    #occ[tuple(e%4 for e in edge[:2])].append(edge[2])
+               for co in combs:
+                    occ[co]+=1
+          for k,v in hom.items():
+               homhet_ratio[k[0]!=k[1]]+=1
+                    
+
+     d=np.asarray(data)
+     #return d
+     plt.scatter(*(d[:,[axis_type,2]]).T,c=colours,alpha=0.5)
+
+     homol_data=defaultdict(list)
+     rand_data=defaultdict(list)
+     for m,n in zip(d,colours):
+          if n=='r':
+               homol_data[m[axis_type]].append(m[2])
+          else:
+               rand_data[m[axis_type]].append(m[2])
+
+     plt.plot(sorted(rand_data),[np.mean(rand_data[k]) for k in sorted(rand_data)],c='k',lw=2)
+
+     plt.plot(sorted(homol_data),[np.mean(homol_data[k]) for k in sorted(homol_data)],c='r',lw=2)
+
+     slope, intercept, r_value, p_value, std_err=stats.linregress(sorted(homol_data),[np.mean(homol_data[k]) for k in sorted(homol_data)])
+     plt.plot(range(min(homol_data),max(homol_data)+1),[slope*x+intercept for x in range(min(homol_data),max(homol_data)+1)],'r--')
+
+     print("ratio is {}/{}".format(*homhet_ratio))
      plt.show(block=False)
+
      
 def orderedOcc2(runs):
      f,ax=plt.subplots()

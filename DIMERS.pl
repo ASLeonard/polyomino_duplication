@@ -7,7 +7,7 @@ use autodie;
 
 my $HOME_DIR = "/scratch/asl47/PDB";
 
-open (my $f_homomers, "<", "${HOME_DIR}/Hets2.txt");
+open (my $f_homomers, "<", "${HOME_DIR}/Het3.txt");
 
 my @structures = <$f_homomers>;
 shift @structures;

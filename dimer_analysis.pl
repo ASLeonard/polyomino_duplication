@@ -14,7 +14,7 @@ my $TM_EXEC = "/rscratch/asl47/TMalign";
 
 system("mkdir -p $HOME_DIR/results");
 
-my ($pdb_raw, $HOMOMER) = @ARGV;
+my ($pdb_raw, $HOMOMER, $KNOWN_BSA) = @ARGV;
 my ($pdb_id, $BA_id) = split(/_/, $pdb_raw, 2);
 
 
@@ -93,7 +93,7 @@ try {
         #print "CHN: " . @chain_id[3] . "\n";
 
     }
-    my $subfolder = $HOMOMER == 1 ? 'homodimer' : 'heterodimer2';
+    my $subfolder = $HOMOMER == 1 ? 'homodimer' : 'heterodimer3';
     my $results = "${HOME_DIR}/results/${subfolder}/${pdb_id}_${BA_id}.results";
     system("echo ${HOMOMER} > ${results}"); 
     #print "LENGTH " . scalar @chains . "\n";
@@ -120,7 +120,9 @@ try {
 	system("${NEEDLE_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[1]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");
         system("${WATER_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[1]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");
     
-        #system("${FREESASA_EXEC} ${HOME_DIR}/${pdb_id}.pdb${BA_id} --chain-group=${chains[0]}${chains[1]}+${chains[0]}+${chains[1]} | grep Total | tail +2 >> ${results}");   
+	if(!$KNOWN_BSA) {
+        system("${FREESASA_EXEC} ${HOME_DIR}/${pdb_id}.pdb${BA_id} --chain-group=${chains[0]}${chains[1]}+${chains[0]}+${chains[1]} | grep Total | tail +2 >> ${results}");
+	}   
         system("~/Documents/PolyDev/duplication/hom.py ${pdb_id} ${BA_id} ${chains[0]} ${chains[1]}");
  
         system("${TM_EXEC} ${HOME_DIR}/${pdb_id}_${chains[0]}.pdb ${HOME_DIR}/${pdb_id}_${chains[1]}.pdb -a | grep TM-score= | tail +3 >> ${results}");

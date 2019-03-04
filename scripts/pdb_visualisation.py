@@ -18,7 +18,7 @@ class Dimer(object):
 def scrubInput(path,local_alignment=True,similarity=True):
      df = pd.DataFrame(index=['Hom', 'Het'],columns=['Null', 'Dimer'])
      rows_list = []
-     BSAs_raw=[line.rstrip().split() for line in open('/scratch/asl47/PDB/Het3.txt')]
+     BSAs_raw=[line.rstrip().split() for line in open('/scratch/asl47/PDB/Inputs/{}.txt'.format(path))]
      BSAs={}
      for bsa in BSAs_raw[1:]:
           BSAs[bsa[0]]=(float(bsa[2])-float(bsa[1]))/2
@@ -32,24 +32,28 @@ def scrubInput(path,local_alignment=True,similarity=True):
                if '_' in tag:
                     d['id']= tag[-6:]
                else:
-                    #continue
                     d['id']= tag[-4:]
+                    
                if len(raw)==1:
                     print("Empty ID on {}".format(d['id']))
                     continue
-               if('#' in raw[1]):
+               
+               if any('#' in line for line in raw):
                     slice_index=1+2*local_alignment+similarity
                     d['homology']=float(raw[slice_index].split()[-1][:-1])
-                    d['pred2']='yes' if d['homology']>=30 else 'no'
+                    d['H_pred']='yes' if d['homology']>=30 else 'no'
 
                if any('Total' in line for line in raw):
                     bsa=tuple(filter(lambda element: 'Total' in element,raw))
                     d['BSA']=((float(bsa[2].split()[-1])+float(bsa[1].split()[-1]))-float(bsa[0].split()[-1]))/2
-               else:
+               elif d['id'] in BSAs:
                     d['BSA']=BSAs[d['id']]
+                    
                if any('TM-score' in line for line in raw):
-                    d['TM']=float(raw[-1].split()[1])
-                    d['pred']= 'no' if d['TM']<=.2 else 'yes' if d['TM']>=.5 else 'maybe'
+                    aligns=tuple(filter(lambda element: 'TM-score' in element,raw))
+                    d['TM']=float(aligns[0].split()[1])
+                    d['S_pred']= 'no' if d['TM']<=.2 else 'yes' if d['TM']>=.5 else 'maybe'
+
           except Exception as e:
                print(e)
                print("except on ", d['id'])
@@ -63,29 +67,29 @@ import numpy as np
 import scipy.stats as ss
 def plotData(data,stat_func=''):
      #g=sns.regplot(x="TM", y="BSA", data=data)
-     low=data.loc[data['TM']<=.17]
+     low=data.loc[data['TM']<=.2]
      high=data.loc[data['TM']>=.5]
      #g = sns.violinplot(y="BSA",data=low)#xlim=(0,1))
      #plt.figure()
      #g3 = sns.violinplot(y="BSA",data=high)#xlim=(0,1))
      #g2 = sns.jointplot(x="TM", y="BSA",data=data,xlim=(0,1))
      
-     print("H: ", np.median(low['BSA'])," and ",np.std(low['BSA']))
-     print("HH: ",np.median(high['BSA'])," +- ",np.std(high['BSA']))
+     print("H: ", np.nanmedian(low['BSA'])," and ",np.nanstd(low['BSA']))
+     print("HH: ",np.nanmedian(high['BSA'])," +- ",np.nanstd(high['BSA']))
      sns.relplot(x='TM', y='homology', size="BSA",sizes=(40, 400), alpha=.5, height=6, data=data)
      plt.figure()
-     ax = sns.violinplot(x="pred", y="BSA",hue='pred2', data=data, palette="muted",split=True,  scale="count",scale_hue=False,inner="quartile",bw=.1)
+     ax = sns.violinplot(x="S_pred", y="BSA",hue='H_pred', data=data, palette="muted",split=False,  scale="count",scale_hue=False,inner="quartile",bw=.1)
      
      plt.show(block=False)
-     print(stats.mannwhitneyu(high['BSA'],low['BSA'],alternative='greater'))
+     print(ss.mannwhitneyu(high['BSA'],low['BSA'],alternative='greater'))
      if stat_func == 'AD':
-          print(ss.anderson_ksamp([data.loc[data['pred']=='yes']['BSA'], data.loc[data['pred']=='no']['BSA']]))
-          print(ss.anderson_ksamp([data.loc[data['pred']=='yes']['BSA'], data.loc[data['pred']=='maybe']['BSA']]))
-          print(ss.anderson_ksamp([data.loc[data['pred']=='maybe']['BSA'], data.loc[data['pred']=='no']['BSA']]))
+          print(ss.anderson_ksamp([data.loc[data['S_pred']=='yes']['BSA'], data.loc[data['S_pred']=='no']['BSA']]))
+          print(ss.anderson_ksamp([data.loc[data['S_pred']=='yes']['BSA'], data.loc[data['S_pred']=='maybe']['BSA']]))
+          print(ss.anderson_ksamp([data.loc[data['S_pred']=='maybe']['BSA'], data.loc[data['S_pred']=='no']['BSA']]))
      elif stat_func == 'KS':
-          print(ss.ks_2samp(data.loc[data['pred']=='yes']['BSA'], data.loc[data['pred']=='no']['BSA']))
-          print(ss.ks_2samp(data.loc[data['pred']=='yes']['BSA'], data.loc[data['pred']=='maybe']['BSA']))
-          print(ss.ks_2samp(data.loc[data['pred']=='maybe']['BSA'], data.loc[data['pred']=='no']['BSA']))
+          print(ss.ks_2samp(data.loc[data['S_pred']=='yes']['BSA'], data.loc[data['S_pred']=='no']['BSA']))
+          print(ss.ks_2samp(data.loc[data['S_pred']=='yes']['BSA'], data.loc[data['S_pred']=='maybe']['BSA']))
+          print(ss.ks_2samp(data.loc[data['S_pred']=='maybe']['BSA'], data.loc[data['S_pred']=='no']['BSA']))
      
      
 

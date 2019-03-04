@@ -17,6 +17,9 @@ system("mkdir -p $HOME_DIR/results");
 my ($pdb_raw, $HOMOMER, $KNOWN_BSA) = @ARGV;
 my ($pdb_id, $BA_id) = split(/_/, $pdb_raw, 2);
 
+my $subfolder = $HOMOMER eq 1 ? 'homodimer' : $HOMOMER;
+my $results = "${HOME_DIR}/results/${subfolder}/${pdb_id}_${BA_id}.results";
+
 
 print "Running DIMER analysis for $pdb_id with assembly $BA_id \n";
 if (-f "$HOME_DIR/${pdb_id}.pdb${BA_id}") {
@@ -93,8 +96,7 @@ try {
         #print "CHN: " . @chain_id[3] . "\n";
 
     }
-    my $subfolder = $HOMOMER == 1 ? 'homodimer' : 'heterodimer3';
-    my $results = "${HOME_DIR}/results/${subfolder}/${pdb_id}_${BA_id}.results";
+    
     system("echo ${HOMOMER} > ${results}"); 
     #print "LENGTH " . scalar @chains . "\n";
     if(scalar @chains != 2) {
@@ -102,7 +104,7 @@ try {
         goto OUTERLOOP; 
     }
            
-    if($HOMOMER) {
+    if($HOMOMER eq 0) {
         if($chains[0] ne $chains[1]) { 
             #print "Multi chain homomer\n";
             system("${WATER_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[1]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");
@@ -118,12 +120,13 @@ try {
     else {
         #print "Heteromer\n";
 	system("${NEEDLE_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[1]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");
+
         system("${WATER_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[1]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");
     
 	if(!$KNOWN_BSA) {
         system("${FREESASA_EXEC} ${HOME_DIR}/${pdb_id}.pdb${BA_id} --chain-group=${chains[0]}${chains[1]}+${chains[0]}+${chains[1]} | grep Total | tail +2 >> ${results}");
 	}   
-        system("~/Documents/PolyDev/duplication/hom.py ${pdb_id} ${BA_id} ${chains[0]} ${chains[1]}");
+        system("~/Documents/PolyDev/duplication/dimer_split.py ${pdb_id} ${BA_id} ${chains[0]} ${chains[1]}");
  
         system("${TM_EXEC} ${HOME_DIR}/${pdb_id}_${chains[0]}.pdb ${HOME_DIR}/${pdb_id}_${chains[1]}.pdb -a | grep TM-score= | tail +3 >> ${results}");
     }

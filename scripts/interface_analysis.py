@@ -98,39 +98,47 @@ from scipy import stats
 def orderedOcc(runs,axis_type=0):
      f,ax=plt.subplots()
      data=[]
-     colours=[]
      homhet_ratio=[0,0]
      for r in runs:
           occ=defaultdict(int)
-          hom={}
+          initial_homologies={}
           dp={v[0]:v[2:] for v in lls(r).values()}
           for gen,v in dp.items():
+               minimals=defaultdict(list)
+               for edge in v:
+                    edge_pair=tuple(e%4 for e in edge[:2])
+                    minimals[edge_pair].append(edge[2])
+               for ep,homol in minimals.items():
+                    if ep not in initial_homologies:
+                         initial_homologies[ep]=min(homol)
                combs={tuple(e%4 for e in edge[:2]) for edge in v}
 
                
                for edge in v:
                     edge_pair=tuple(e%4 for e in edge[:2])
                     color=''
-                    if edge_pair not in hom:
-                         hom[edge_pair]=edge[2]
-                    colours.append('r' if hom[edge_pair]==0 else 'k')
-                   
-                    data.append([gen,occ[edge_pair],edge[2]])
-                    #occ[tuple(e%4 for e in edge[:2])].append(edge[2])
+                    #if edge_pair not in hom:
+                    #     hom[edge_pair]=edge[2]
+                    #colours.append('r' if initial_homologies[edge_pair]<=10 else 'k')
+                    #colours.append(initial_homologies[edge_pair])
+                    data.append([gen,occ[edge_pair],edge[2],edge_pair[0]==edge_pair[1],initial_homologies[edge_pair]])
+
+
                for co in combs:
                     occ[co]+=1
-          for k,v in hom.items():
+          for k,v in initial_homologies.items():
                homhet_ratio[k[0]!=k[1]]+=1
                     
 
-     d=np.asarray(data)
-     #return d
-     plt.scatter(*(d[:,[axis_type,2]]).T,c=colours,alpha=0.5)
+     d_arr=np.asarray(data)
+     for homologues in (0,1):
+          d=d_arr[d_arr[:,3]==homologues]
+          plt.scatter(*(d[:,[axis_type,2]]).T,c=d[:,4],alpha=0.5,cmap='plasma',marker=('o','s')[homologues])
 
      homol_data=defaultdict(list)
      rand_data=defaultdict(list)
-     for m,n in zip(d,colours):
-          if n=='r':
+     for m in d_arr:
+          if m[4]==0:
                homol_data[m[axis_type]].append(m[2])
           else:
                rand_data[m[axis_type]].append(m[2])

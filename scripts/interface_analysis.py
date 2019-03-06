@@ -30,7 +30,7 @@ def plotBs(a):
                plt.plot(range(1000),j,c[g])
      plt.show(block=False)
 
-from matplotlib.colors import ListedColormap
+from matplotlib.colors import ListedColormap, Normalize
 import matplotlib as mpl
 
 def homm(run,L):
@@ -102,26 +102,29 @@ def orderedOcc(runs,axis_type=0):
      for r in runs:
           occ=defaultdict(int)
           initial_homologies={}
-          dp={v[0]:v[2:] for v in lls(r).values()}
+          initial_edges={}
+          dp={v[0]:v[2:] for v in sorted(lls(r).values())}
           for gen,v in dp.items():
                minimals=defaultdict(list)
                for edge in v:
                     edge_pair=tuple(e%4 for e in edge[:2])
                     minimals[edge_pair].append(edge[2])
+                    
                for ep,homol in minimals.items():
                     if ep not in initial_homologies:
                          initial_homologies[ep]=min(homol)
+                    if ep not in initial_edges:
+                         initial_edges[ep]=gen
                combs={tuple(e%4 for e in edge[:2]) for edge in v}
 
                
                for edge in v:
                     edge_pair=tuple(e%4 for e in edge[:2])
                     color=''
-                    #if edge_pair not in hom:
-                    #     hom[edge_pair]=edge[2]
-                    #colours.append('r' if initial_homologies[edge_pair]<=10 else 'k')
-                    #colours.append(initial_homologies[edge_pair])
-                    data.append([gen,occ[edge_pair],edge[2],edge_pair[0]==edge_pair[1],initial_homologies[edge_pair]])
+                    #occurence, generation, shifted generation, homology, pairing, initial homology
+                    if gen-initial_edges[edge_pair]<0:
+                         print(r)
+                    data.append([occ[edge_pair],gen,gen-initial_edges[edge_pair],edge[2],edge_pair[0]==edge_pair[1],initial_homologies[edge_pair]])
 
 
                for co in combs:
@@ -132,20 +135,25 @@ def orderedOcc(runs,axis_type=0):
 
      d_arr=np.asarray(data)
      for homologues in (0,1):
-          d=d_arr[d_arr[:,3]==homologues]
-          plt.scatter(*(d[:,[axis_type,2]]).T,c=d[:,4],alpha=0.5,cmap='plasma',marker=('o','s')[homologues])
+          d=d_arr[d_arr[:,4]==homologues]
+          plt.scatter(*(d[:,[axis_type,3]]).T,c=d[:,5],alpha=0.5,cmap='plasma',norm=Normalize(0,90),marker=('o','s')[homologues])
 
      homol_data=defaultdict(list)
      rand_data=defaultdict(list)
      for m in d_arr:
-          if m[4]==0:
-               homol_data[m[axis_type]].append(m[2])
+          if m[5]<=40:
+               homol_data[m[axis_type]].append(m[3])
           else:
-               rand_data[m[axis_type]].append(m[2])
+               rand_data[m[axis_type]].append(m[3])
 
-     plt.plot(sorted(rand_data),[np.mean(rand_data[k]) for k in sorted(rand_data)],c='k',lw=2)
+     def running_mean(x, N):
+          cumsum = np.cumsum(np.insert(x, 0, 0)) 
+          return (cumsum[N:] - cumsum[:-N]) / float(N)
 
-     plt.plot(sorted(homol_data),[np.mean(homol_data[k]) for k in sorted(homol_data)],c='r',lw=2)
+     window=20 if axis_type!=0 else 2
+     for group,c in zip((rand_data,homol_data),('k','r')): 
+          plt.plot(sorted(group)[max(0,window//2-1):-window//2],running_mean([np.median(group[k]) for k in sorted(group)],window),c=c,lw=2)
+
 
      slope, intercept, r_value, p_value, std_err=stats.linregress(sorted(homol_data),[np.mean(homol_data[k]) for k in sorted(homol_data)])
      plt.plot(range(min(homol_data),max(homol_data)+1),[slope*x+intercept for x in range(min(homol_data),max(homol_data)+1)],'r--')

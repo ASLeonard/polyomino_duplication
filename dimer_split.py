@@ -6,7 +6,7 @@ import os
 
 def analyseMany(f_name,dir_out):
     if 'PDB' in f_name:
-        for line in [l.split(', ') for l in open('Inputs/{}.txt'.format(f_name))][0]:
+        for line in [l.rstrip().split(', ') for l in open('Inputs/{}.txt'.format(f_name))][0]:
             os.system('/u/fs1/asl47/Documents/PolyDev/duplication/dimer_analysis.pl {}_1 {} 0'.format(line,dir_out))
     else:
         for line in open('Inputs/{}.txt'.format(f_name)):

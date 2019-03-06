@@ -119,6 +119,7 @@ try {
     }
     else {
         #print "Heteromer\n";
+	system("echo ${chains[0]} ${chains[1]} >> ${results}"); 
 	system("${NEEDLE_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[1]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");
 
         system("${WATER_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[1]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");

@@ -11,7 +11,7 @@ def analyseMany(f_name,dir_out):
     else:
         for line in open('Inputs/{}.txt'.format(f_name)):
             (pdb_id,BA_id) =str(line.split('\t')[0]).split('_')
-            os.system('/u/fs1/asl47/Documents/PolyDev/duplication/dimer_analysis.pl {}_{} {} 1'.format(pdb_id,BA_id,dir_out))
+            os.system('/u/fs1/asl47/Documents/PolyDev/duplication/dimer_analysis.pl {}_{} {} 0'.format(pdb_id,BA_id,dir_out))
         
         
 
@@ -22,7 +22,7 @@ def splitChainFiles(pdb_in,pdb_ID, ch1, ch2):
                 if 'ATOM' in line:
                     if ch1 in line.split()[:-1]:
                         ch1_out.write(line)
-                    elif ch2 in line.split()[:-1]:
+                    elif ch1!=ch2 and ch2 in line.split()[:-1]:
                         ch2_out.write(line)
 
 def main():

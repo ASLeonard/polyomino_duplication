@@ -103,23 +103,28 @@ try {
         print "Bad length \n";
         goto OUTERLOOP; 
     }
+    system("echo ${chains[0]} ${chains[1]} >> ${results}"); 
            
-    if($HOMOMER eq 0) {
+    if($HOMOMER eq "PDB_Homodimers") {
+	system("${NEEDLE_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[1]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");
+        system("${WATER_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[1]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");
         if($chains[0] ne $chains[1]) { 
             #print "Multi chain homomer\n";
-            system("${WATER_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[1]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");
+            
             system("${FREESASA_EXEC} ${HOME_DIR}/${pdb_id}.pdb${BA_id} --join-models --chain-group=${chains[0]}${chains[1]}+${chains[0]}+${chains[1]} | grep Total | tail +2 >> ${results}");   
 
         }
         else {
-            system("${WATER_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");
             system("${FREESASA_EXEC} ${HOME_DIR}/${pdb_id}.pdb${BA_id} --join-models | grep Total >> ${results}");  
             system("${FREESASA_EXEC} ${HOME_DIR}/${pdb_id}.pdb${BA_id} --separate-models | grep Total >> ${results}"); 
         }
+	system("~/Documents/PolyDev/duplication/dimer_split.py ${pdb_id} ${BA_id} ${chains[0]} ${chains[1]}");
+ 
+        system("${TM_EXEC} ${HOME_DIR}/${pdb_id}_${chains[0]}.pdb ${HOME_DIR}/${pdb_id}_${chains[1]}.pdb -a | grep TM-score= | tail +3 >> ${results}");
     }
     else {
         #print "Heteromer\n";
-	system("echo ${chains[0]} ${chains[1]} >> ${results}"); 
+	
 	system("${NEEDLE_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[1]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");
 
         system("${WATER_EXEC} ${HOME_DIR}/${pdb_id}.fasta${chains[0]} ${HOME_DIR}/${pdb_id}.fasta${chains[1]} -gapopen 10 -gapextend .5 -nobrief -stdout -auto | grep Longest >> ${results}");

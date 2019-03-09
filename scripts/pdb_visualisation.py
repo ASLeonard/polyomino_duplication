@@ -30,61 +30,88 @@ def getDomains(path='Complex_Heterodimers'):
           
 
      return domain_dict
-def domainMatch(d1,d2):
-     if 'NA' in d1 or 'NA' in d2:
+def domainMatch(data,c1,c2):
+     if c1 not in data and c2 not in data:
           return 'NA'
-     elif d1==d2:
+     elif c1 not in data or c2 not in data:
+          return 'none'
+     elif data[c1] == data[c2]:
           return 'full'
-     elif any((s in d2 for s in d1.split(';'))) or any((s in d1 for s in d2.split(';'))):
+     elif not set(data[c1]).isdisjoint(data[c2]):
           return 'partial'
      else:
           return 'none'
 
+import requests
+from collections import defaultdict
+def pullSCOP(pdb_id):
+     data=requests.get('http://www.ebi.ac.uk/pdbe/api/mappings/scop/{}'.format(pdb_id)).json()
+     domain_arch=defaultdict(list)
+     for superfam in data[pdb_id]['SCOP'].values():
+          scop_id=superfam['superfamily']['sunid']
+          for chain_element in superfam['mappings']:
+               domain_arch[chain_element['chain_id']].append(scop_id)
+     return dict(domain_arch)
 
-def scrubInput(path,local_alignment=True,similarity=True):
+def pullCATH(pdb_id):
+     data=requests.get('http://www.ebi.ac.uk/pdbe/api/mappings/cath_b/{}'.format(pdb_id)).json()
+     domain_arch=defaultdict(list)
+     for cath_id, superfam in data[pdb_id]['CATH-B'].items():
+          for chain_element in superfam['mappings']:
+               domain_arch[chain_element['chain_id']].append(cath_id)
+     return dict(domain_arch)
+     
+import json
+def writeDomains(pdb_list,class_type='SCOP'):
+     domains={}
+     pullDomains=pullSCOP if class_type=='SCOP' else pullCATH
+     for pdb in pdb_list:
+          domains[pdb]=pullDomains(pdb)
+
+     with open('domain_architectures_{}.json'.format(class_type), 'w') as file_out:
+          file_out.write(json.dumps(domains))
+
+def readDomains(file_name='SCOP'):
+     with open('domain_architectures_{}.json'.format(file_name)) as f:
+          return json.load(f)
+          
+
+def scrubInput(path,local_alignment=True,similarity=True,domain='SCOP'):
      df = pd.DataFrame(index=['Hom', 'Het'],columns=['Null', 'Dimer'])
      rows_list = []
      BSAs_raw=[line.rstrip().split() for line in open('/scratch/asl47/PDB/Inputs/{}.txt'.format(path))]
-     domain_dict=getDomains()
+     domain_dict=readDomains(domain)
      BSAs={}
      for bsa in BSAs_raw[1:]:
           BSAs[bsa[0]]=(float(bsa[2])-float(bsa[1]))/2
           
      for result in glob.glob('/scratch/asl47/PDB/results/{}/*.results'.format(path)):
+          d={'id':result.split('.')[0].split('/')[-1].lower()}
           raw=[line.rstrip() for line in open(result)]
           
           try:
-               d={'homomer':bool(raw[0]=='1')}
-               tag=result.split('.')[0]
-               if '_' in tag:
-                    d['id']= tag[-6:].lower()
-               else:
-                    d['id']= tag[-4:]
-
+               d['homomer']=bool(raw[0]=='1')
                     
                if len(raw)==1:
                     print("Empty ID on {}".format(d['id']))
                     continue
                
                if any('#' in line for line in raw):
-                    slice_index=1+2*local_alignment+similarity
-                    d['homology']=float(raw[slice_index].split()[-1][:-1])
+                    homologies=tuple(filter(lambda element: '#' in element,raw))
+                    slice_index=2+2*local_alignment+similarity
+                    d['homology']=float(homologies[2*local_alignment+similarity].split()[-1][:-1]) 
                     d['H_pred']='yes' if d['homology']>=30 else 'no'
 
                if any('Total' in line for line in raw):
                     bsa=tuple(filter(lambda element: 'Total' in element,raw))
                     d['BSA']=((float(bsa[2].split()[-1])+float(bsa[1].split()[-1]))-float(bsa[0].split()[-1]))/2
-               elif d['id'] in BSAs:
-                    d['BSA']=BSAs[d['id']]
-               if d['id'] in domain_dict:
-                    if domain_dict[d['id']]!='?':
-                         chains=raw[1].split()
-                         d['domain']=domainMatch(domain_dict[d['id']][chains[0]],domain_dict[d['id']][chains[1]])
-                    else:
-                         d['domain']='unknown'
-                         #'full' if any((d['id'] in i for i in full_matches)) else ('partial' if any((d['id'] in i for i in partial_matches)) else ('unknown' if d['id'] in unknowns else 'none'))
+                    
+               if d['id'][:4] in domain_dict:
+                    chains=raw[1].split()
+                    d['domain']=domainMatch(domain_dict[d['id'][:4]],*chains)
                else:
                     d['domain']='unknown'
+
                if any('TM-score' in line for line in raw):
                     aligns=tuple(filter(lambda element: 'TM-score' in element,raw))
                     d['TM']=float(aligns[0].split()[1])
@@ -103,41 +130,38 @@ import numpy as np
 import scipy.stats as ss
 def plotData(data,stat_func=''):
      #g=sns.regplot(x="TM", y="BSA", data=data)
-     low=data.loc[data['TM']<=.2]
-     high=data.loc[data['TM']>=.5]
+     
+                   
      #g = sns.violinplot(y="BSA",data=low)#xlim=(0,1))
      #plt.figure()
      #g3 = sns.violinplot(y="BSA",data=high)#xlim=(0,1))
      #g2 = sns.jointplot(x="TM", y="BSA",data=data,xlim=(0,1))
-
-     print("High :",len(high), "and low:",len(low))
-     print("H: ", np.nanmedian(low['BSA'])," and ",np.nanstd(low['BSA']))
-     print("HH: ",np.nanmedian(high['BSA'])," +- ",np.nanstd(high['BSA']))
-     sns.relplot(x='TM', y='homology', size="BSA",sizes=(40, 400),hue='domain', alpha=.5, height=6, data=data)
+     sns.relplot(x='TM', y='BSA', size="BSA",sizes=(40, 400),hue='domain', alpha=.75, height=6, data=data)
      plt.figure()
-     ax = sns.violinplot(x="S_pred", y="BSA",hue='H_pred', data=data, palette="muted",split=False,  scale="count",scale_hue=False,inner="quartile",bw=.1)
+     ax = sns.violinplot(x="domain", y="BSA",hue='H_pred', data=data, palette="muted",split=False,  scale="count",scale_hue=False,inner="quartile",bw=.1)
      
      plt.show(block=False)
-     print(ss.mannwhitneyu(high['BSA'],low['BSA'],alternative='greater'))
-     for overlap in ('full','partial','none','unknown','NA'):
-          print(overlap,np.nanmedian([float(i) for i in data.loc[data['domain']==overlap]['BSA']]))
 
+     low=data.loc[data['S_pred']=='no']
+     high=data.loc[data['S_pred']=='yes']
+
+     for val, dic in zip(('High','Low'),(high,low)):
+          print("{}: ({})".format(val,len(dic))," = ", np.nanmedian(dic['BSA']))
 
      
-     if stat_func == 'AD':
-          print(ss.anderson_ksamp([data.loc[data['S_pred']=='yes']['BSA'], data.loc[data['S_pred']=='no']['BSA']]))
-          print(ss.anderson_ksamp([data.loc[data['S_pred']=='yes']['BSA'], data.loc[data['S_pred']=='maybe']['BSA']]))
-          print(ss.anderson_ksamp([data.loc[data['S_pred']=='maybe']['BSA'], data.loc[data['S_pred']=='no']['BSA']]))
-     elif stat_func == 'KS':
-          print(ss.ks_2samp(data.loc[data['S_pred']=='yes']['BSA'], data.loc[data['S_pred']=='no']['BSA']))
-          print(ss.ks_2samp(data.loc[data['S_pred']=='yes']['BSA'], data.loc[data['S_pred']=='maybe']['BSA']))
-          print(ss.ks_2samp(data.loc[data['S_pred']=='maybe']['BSA'], data.loc[data['S_pred']=='no']['BSA']))
      
+     print("\np-value: {}\n".format(ss.mannwhitneyu(high['BSA'],low['BSA'],alternative='greater')[1]))
+     for overlap in ('full','partial','none','NA'):
+          print(overlap,"({})".format(len(data.loc[data['domain']==overlap])),np.nanmean([float(i) for i in data.loc[data['domain']==overlap]['BSA']]))
+
+     domain_yes=x=data.loc[(data['domain']=='full') | (data['domain']=='partial')]
+     domain_no=x=data.loc[~(data['domain']=='full') & ~(data['domain']=='partial')]
+     print("\np-value: {}".format(ss.mannwhitneyu(domain_yes['BSA'],domain_no['BSA'],alternative='greater')[1]))
+     print(np.nanmedian(domain_yes['BSA']),np.nanmedian(domain_no['BSA']))
      
 
 
 
-import pandas as pd
 def loadLevy():
      data=[]
      for line in open('../../../../Downloads/levydata'):

@@ -12,6 +12,7 @@ scripts/*.so
 scripts/*.sh
 
 scripts/*.pdf
+scripts/*.json
 
 # Ignore Mac specific files
 .DS_Store

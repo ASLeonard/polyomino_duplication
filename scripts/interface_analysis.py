@@ -35,12 +35,11 @@ import matplotlib as mpl
 
 def homm(run,L):
      return [[int(i) for i in line.split()] for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Yomology_Run{}.txt'.format(run))]
-
-def homm2(fname,run,L):
-     return np.fromfile('/scratch/asl47/Data_Runs/Bulk_Data/{}_Run{}.txt'.format(fname,run),dtype=np.uint16).reshape(-1,L+1)
-
 def strr(run,L):
      return [[L-int(i) for i in line.split()] for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Strengths_Run{}.txt'.format(run))]
+
+def readBinaryVectors(fname,run,L):
+     return np.fromfile('/scratch/asl47/Data_Runs/Bulk_Data/{}_Run{}.txt'.format(fname,run),dtype=np.uint16).reshape(-1,L+1)
 
 
 def norm_rows(a):
@@ -49,61 +48,66 @@ def norm_rows(a):
 
 import matplotlib.colors as mpc
 import numpy.ma as ma
-def plotHom(run,L,norm=True,anno=False):
+def plotHom(run,L,norm=True,annotate=False):
 
      f,axes=plt.subplots(2,1,sharex=True)
      for ax,func in zip(axes,('Zomology','Strengths')):
-          if func==strr:
-               continue
-               print(homm)
-          data=homm2(func,run,L)
+
+          data=readBinaryVectors(func,run,L)
           if norm:
                data=np.apply_along_axis(norm_rows,1,data.astype(np.float))
           pop_grid= ma.masked_equal(data.T,0)
-          
-          #pop_grid=np.ma.zeros((L+1,len(data)))
-          #pop_grid.mask=True
-          #for i,row in enumerate(data):
-          #     c=Counter(row)c
-          #     for k,v in c.items():
-          #          pop_grid.mask[k,i]=False
-          #          pop_grid[k,i]=v/sum(c.values())
+
           px=ax.pcolormesh(pop_grid,cmap='RdGy',norm=mpc.LogNorm(vmin=pop_grid.min(), vmax=pop_grid.max()))
 
      axes[0].set_ylabel('Homology')
      axes[1].set_ylabel('Strength')
      
      f.colorbar(px,ax=axes)
-     if anno:
-          annotes=lls(run)
+     if annotate:
+          annotations=readEvoRecord(run)
           ax=axes[0]
           fixed_pids=[]#{tuple(i) for i in getFixedPhenotypes(LoadPIDHistory(run))}
-          for pid,details in annotes.items():
+          for pid,details in annotations.items():
                alph=1 if pid in fixed_pids else 1
                     
                for edge in details[2:]:
                     ax.scatter(details[0],edge[2],c=[cm.tab20((edge[0]%4*4+edge[1]%4)/16)],alpha=alph)
      plt.show(block=False)
 
-def lls(run):
+def readEvoRecord(run):
      lines=[line.rstrip() for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Evo_Run{}.txt'.format(run))]
      d={}
      for l in lines:
           parts=l.split()
-          
           d[tuple(int(i) for i in parts[:2])]=tuple(int(i) for i in parts[2:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)])
      return d
 
+def readEvoRecord2(mu,S_c,rate,duplicate=True):
+     lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/EvoRecords/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
+     d=[{}]
+     prev_phen_size=(0,0)
+     for l in lines:
+          parts=l.split()
+          key=tuple(int(i) for i in parts[:2])
+          d[-1][key]=tuple(int(i) for i in parts[2:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)])
+          if key <= prev_phen_size:
+               d.append({})
+          prev_phen_size=key
+               
+               
+     return d
+
 from scipy import stats
-def orderedOcc(runs,axis_type=0):
-     f,ax=plt.subplots()
+import pandas as pd
+def compileEvoRecord(runs):
+     
      data=[]
-     homhet_ratio=[0,0]
      for r in runs:
-          occ=defaultdict(int)
+          occurences=defaultdict(int)
           initial_homologies={}
           initial_edges={}
-          dp={v[0]:v[2:] for v in sorted(lls(r).values())}
+          dp={v[0]:v[2:] for v in sorted(readEvoRecord(r).values())}
           for gen,v in dp.items():
                minimals=defaultdict(list)
                for edge in v:
@@ -120,72 +124,65 @@ def orderedOcc(runs,axis_type=0):
                
                for edge in v:
                     edge_pair=tuple(e%4 for e in edge[:2])
-                    color=''
-                    #occurence, generation, shifted generation, homology, pairing, initial homology
-                    if gen-initial_edges[edge_pair]<0:
-                         print(r)
-                    data.append([occ[edge_pair],gen,gen-initial_edges[edge_pair],edge[2],edge_pair[0]==edge_pair[1],initial_homologies[edge_pair]])
+
+                    data.append({'occurence':occurences[edge_pair],'generation':gen,'t_0':gen-initial_edges[edge_pair],'homology':edge[2],'edge_pair':edge_pair[0]==edge_pair[1],'h_0':initial_homologies[edge_pair]})
 
 
                for co in combs:
-                    occ[co]+=1
-          for k,v in initial_homologies.items():
-               homhet_ratio[k[0]!=k[1]]+=1
-                    
+                    occurences[co]+=1
+     return pd.DataFrame(data)
 
-     d_arr=np.asarray(data)
+def readCompiledEvoRecord(add_type='Dup', T='High'):
+     return pd.read_csv('/rscratch/asl47/EvoRecords/EvoRecord_{}_{}.pd'.format(add_type,T))
+def plotEvoRecord(df,key='occurence'):
+     f,ax=plt.subplots()
+
      for homologues in (0,1):
-          d=d_arr[d_arr[:,4]==homologues]
-          plt.scatter(*(d[:,[axis_type,3]]).T,c=d[:,5],alpha=0.5,cmap='plasma',norm=Normalize(0,90),marker=('o','s')[homologues])
+          d=df.loc[df['edge_pair']==homologues]
+          plt.scatter(d[key],d['homology'],c=d['h_0'],alpha=0.5,cmap='plasma',norm=Normalize(0,90),marker=('o','s')[homologues])
 
      homol_data=defaultdict(list)
      rand_data=defaultdict(list)
-     for m in d_arr:
-          if m[5]<=40:
-               homol_data[m[axis_type]].append(m[3])
+     for xv,h_0,hom in zip(df[key],df['h_0'],df['homology']):
+          if h_0<=40:
+               if hom==0:
+                    continue
+               homol_data[xv].append(hom)
           else:
-               rand_data[m[axis_type]].append(m[3])
+               rand_data[xv].append(hom)
 
      def running_mean(x, N):
           cumsum = np.cumsum(np.insert(x, 0, 0)) 
           return (cumsum[N:] - cumsum[:-N]) / float(N)
 
-     window=20 if axis_type!=0 else 2
+     window=20 if key!='occurence' else 2
      for group,c in zip((rand_data,homol_data),('k','r')): 
           plt.plot(sorted(group)[max(0,window//2-1):-window//2],running_mean([np.median(group[k]) for k in sorted(group)],window),c=c,lw=2)
 
 
-     slope, intercept, r_value, p_value, std_err=stats.linregress(sorted(homol_data),[np.mean(homol_data[k]) for k in sorted(homol_data)])
-     plt.plot(range(min(homol_data),max(homol_data)+1),[slope*x+intercept for x in range(min(homol_data),max(homol_data)+1)],'r--')
+     #slope, intercept, r_value, p_value, std_err=stats.linregress(sorted(homol_data),[np.mean(homol_data[k]) for k in sorted(homol_data)])
+     #plt.plot(range(min(homol_data),max(homol_data)+1),[slope*x+intercept for x in range(min(homol_data),max(homol_data)+1)],'r--')
 
-     print("ratio is {}/{}".format(*homhet_ratio))
+     print("ratio is {}/{}".format(len(df.loc[(df['occurence']==0) & (df['h_0']<=40)]),len(df.loc[(df['occurence']==0) & (df['h_0']>40)])))
+     ax.set_ylabel('homology',fontsize=24)
+     ax.set_xlabel(key,fontsize=24)
      plt.show(block=False)
 
      
-def orderedOcc2(runs):
-     f,ax=plt.subplots()
-     points=[]
-     for r in runs:
-          for k,v in lls(r).items():
-               for edge in v[2:]:
-                    points.append((v[0],edge[2]))
-     d=np.asarray(points)
-     plt.scatter(*d.T)
+def plotDiversity(run_range,max_g,diversity=True):
+     discovs=np.zeros((len(run_range),max_g),dtype=np.uint8)
+     for r in run_range:
+          
+          hits=sorted([(v[0],k[0]) for k,v in readEvoRecord(r).items()])
+          count_val=1 if diversity else hits[0][1]
+          for start,end in zip(hits,hits[1:]+[(max_g,-1)]):
+               discovs[r-run_range.start,start[0]:end[0]]=count_val
+               count_val = (count_val + 1) if diversity else max(start[1],end[1])
+ 
+          
+     return discovs
 
-#dp={v[0]:v[2:] for v in lls(r).values()}
-#          for v in dp.values():
- #              for edge in v:
-  #                  occ[tuple(e%4 for e in edge[:2])].append(edge[2])
-
-   #       for oc in occ.values():
-    #           c='r' if oc[0]<40 else 'k'
-     #          if len(oc)>10:
-      #              print(r)
-       #        if len(oc)>1:
-        #            ax.plot(oc,marker='o',c=c)
-         #      else:
-          #          ax.scatter([0],oc,c=c)
-     plt.show(block=False)
+     
           
 
 
@@ -296,12 +293,11 @@ def add_selection_layer(ax,selections,run,colorize='M'):
 
      sizes=np.loadtxt('/scratch/asl47/Data_Runs/Bulk_Data/Size_Run{}.txt'.format(run),dtype=np.uint8).reshape(-1)
 
-     ##[line.rstrip() for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Interactions_Run1.txt')][815].split('.')[96]##
      
 
      cols=np.array(['k','darkgreen','darkred','blue','gainsboro'])
      lws=np.array([0.5,1,1,1])
-     lc = mc.LineCollection(lines, linewidths=1,linestyle='-',cmap='inferno')#color=col_opts)#lws[mutations]
+     lc = mc.LineCollection(lines, linewidths=1,linestyle='-',cmap='inferno')
      
      if colorize=='M':
           lc.set_array(mutations)
@@ -313,14 +309,10 @@ def add_selection_layer(ax,selections,run,colorize='M'):
      plt.colorbar(lc)
      ax.add_collection(lc)
 
-def add_duplication_layer(ax):
-     dups=[[int(i) for i in line.rstrip()] for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Homology_Run0.txt')]
-     
-
-     
+         
 from itertools import chain     
 def plotPhen(pids_raw,run,thresh=0.25):
-     pids=pids_raw#ObjArray([[tuple(i) for i in row] for row in pids_raw])
+     pids=pids_raw
 
      unique_pids=[(0,0),(1,0),(255,0)]+list(LoadPhenotypeTable(run).keys())
      gens,pop_size=pids_raw.shape
@@ -341,30 +333,9 @@ def plotPhen(pids_raw,run,thresh=0.25):
      #plt.yscale('log',nonposy='mask')
      plt.show(block=False)
 
+if __name__ == "__main__":
+     main()
 
-def convertDoubleNestedDict(dict_in):
-     return {k:dict(v) for k,v in dict_in.items()}
-
-def getBondType(bond,bonds):
-     if checkBranchingPoint(bond,bonds):
-          if bond[0]//4==bond[1]//4:
-               return 4 #same tile BP
-          else:
-               return 3 #external BP
-     else:
-          if bond[0]//4==bond[1]//4:
-               return 2 #internal loop
-          else:
-               return 1 #external SIF
-
-def checkBranchingPoint(bond,bonds):
-     test_bonds=list(sum((b for b in bonds if b!= bond), ()))
-     return any(x in test_bonds for x in bond)
-
-def consecutiveRanges(data):
-     return [map(itemgetter(1), g) for _,g in groupby(enumerate(data), lambda kv:(kv[0]-kv[1]))]
-
-def allUniqueBonds(bonds):
-     seen = set()
-     return not any(i in seen or seen.add(i) for i in list(sum(bonds, ())))
-
+def main():
+     args=sys.argv
+     compileEvoRecord()

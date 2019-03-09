@@ -4,6 +4,7 @@
 constexpr bool BINARY_WRITE_FILES=false;
 bool KILL_BACK_MUTATIONS=false;
 const std::string file_base_path="//scratch//asl47//Data_Runs//Bulk_Data//";
+const std::string shared_base_path="//rscratch//asl47//Duplication//EvoRecords//";
 const std::map<Phenotype_ID,uint8_t> phen_stages{{{0,0},0},{{10,0},4},{{1,0},1},{{2,0},2},{{4,0},2},{{4,1},3},{{8,0},3},{{12,0},4},{{16,0},4}};
 
 
@@ -230,18 +231,11 @@ void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::map<Phenotype_ID, std:
   //Record homology for "successful" observations
   if(PG.PID_tracker.size()==1 && std::accumulate(PG.PID_tracker.begin()->second.begin(),PG.PID_tracker.begin()->second.end(),0)==PG.PID_depth) {
     const auto pid= PG.PID_tracker.begin()->first;
-    if(Homology_tracker.find(pid)==Homology_tracker.end()) {
-
+    if(Homology_tracker.find(pid)==Homology_tracker.end())
       Homology_tracker[pid] = {PG.PID_info[pid].first.first,PG.PID_info[pid].first.second,PG.PID_deet[pid]};
-        //[PG.PID_info[pid].first]=PG.PID_info[pid].second;
-      //std::cout<<"homology added for "<<pid<<" at "<<+PG.PID_info[pid].first.first<<", "<<+PG.PID_info[pid].first.second<<"\n";
-      //for(auto x : PG.PID_deet[pid])
-      //  std::cout<<"E: "<<+std::get<0>(x).first<<"~"<<+std::get<0>(x).second<<" h: "<<std::get<1>(x)<<" s: "<<std::get<2>(x)<<" f: "<<std::get<3>(x)<<"\n";
-    }
   }
   
 }
-
 
 
 
@@ -250,7 +244,7 @@ void EvolvePopulation(std::string run_details) {
     
   std::ofstream fout_strength(file_base_path+"Strengths"+file_simulation_details,std::ios::binary);
   std::ofstream fout_zomology(file_base_path+"Zomology"+file_simulation_details,std::ios::binary);
-  std::ofstream fout_evo(file_base_path+"Evo"+file_simulation_details,std::ios::out );
+  std::ofstream fout_evo(shared_base_path+"EvoRecord_Mu"+std::to_string(InterfaceAssembly::mutation_rate)+"_S"+std::to_string(InterfaceAssembly::binding_threshold)+(InterfaceAssembly::duplication_rate > InterfaceAssembly::insertion_rate ? "_D" + std::to_string(InterfaceAssembly::duplication_rate) : "_I" + std::to_string(InterfaceAssembly::insertion_rate))+".txt",std::ios::app );
   
   std::string fname_phenotype(file_base_path+"PhenotypeTable"+file_simulation_details);
   
@@ -264,18 +258,6 @@ void EvolvePopulation(std::string run_details) {
     fout_interactions2.open(file_base_path+"Binteractions"+file_simulation_details,std::ios::out);
     
   }
-    //(file_base_path+"PIDs"+file_simulation_details,std::ios::out );;
-  //(file_base_path+"Size"+file_simulation_details,std::ios::out)
-  //(file_base_path+"Selections"+file_simulation_details,std::ios::out);
-  //std::ofstream fout_interactions(file_base_path+"Interactions"+file_simulation_details,std::ios::out);
-  //std::ofstream fout_interactions2(file_base_path+"Binteractions"+file_simulation_details,std::ios::out);
-  //std::ofstream fout_mutation(file_base_path+"Mutation"+file_simulation_details,std::ios::out); 
-  //std::ofstream fout_homology(file_base_path+"Homology"+file_simulation_details,std::ios::out);
-  //std::ofstream fout_yomology(file_base_path+"Yomology"+file_simulation_details,std::ios::out);
-
-  
-  //std::ofstream fout_size(file_base_path+"Size"+file_simulation_details,std::ios::out);
-  //std::ofstream fout_size2(file_base_path+"Fize"+file_simulation_details,std::ios::out );
 
   
   
@@ -286,8 +268,7 @@ void EvolvePopulation(std::string run_details) {
   std::vector<PopulationGenotype> evolving_population(simulation_params::population_size),reproduced_population;
   reproduced_population.resize(simulation_params::population_size);
 
-  std::vector<uint16_t> bvx(interface_size+1);
-  std::vector<uint16_t> bvy(interface_size+1);
+  std::vector<uint16_t> binary_homologies(interface_size+1), binary_strengths(interface_size+1);
   
   Phenotype::DETERMINISM_LEVEL=1;
   FitnessPhenotypeTable pt = FitnessPhenotypeTable();
@@ -366,8 +347,8 @@ void EvolvePopulation(std::string run_details) {
       for(const auto& pid_kv : pid_interactions) {
         for(const auto& ints_kv : pid_kv.second) {
           auto IP = ints_kv.first;
-          bvx[(assembly_genotype[IP.first]^assembly_genotype[IP.second]).count()]+=ints_kv.second;
-          bvy[interface_size-interface_model::SammingDistance(assembly_genotype[IP.first],assembly_genotype[IP.second])]+=ints_kv.second;
+          binary_homologies[(assembly_genotype[IP.first]^assembly_genotype[IP.second]).count()]+=ints_kv.second;
+          binary_strengths[interface_size-interface_model::SammingDistance(assembly_genotype[IP.first],assembly_genotype[IP.second])]+=ints_kv.second;
         }
       }
            
@@ -396,8 +377,8 @@ void EvolvePopulation(std::string run_details) {
     evolving_population.swap(reproduced_population);
     
     
-    BinaryWriter(fout_zomology,bvx);
-    BinaryWriter(fout_strength,bvy);
+    //BinaryWriter(fout_zomology,binary_homologies);
+    //BinaryWriter(fout_strength,binary_strengths);
 
     if(FULL_WRITE) {
       BinaryWriter(fout_selection_history,reproducing_selection);
@@ -411,16 +392,18 @@ void EvolvePopulation(std::string run_details) {
     
     
   } /* END EVOLUTION LOOP */
-  //for(auto x : evolving_population)
-  //  std::cout<<x.genotype.size()<<"\n";
+
+#pragma omp critical(evo_record_write)
+  {
   for(auto kv : evolution_record) {
     fout_evo<<+kv.first.first<<" "<<+kv.first.second<<" "<<std::get<0>(kv.second)<<" "<<std::get<1>(kv.second)<<" ";
       for(auto pv : std::get<2>(kv.second))
         fout_evo<<+std::get<0>(pv).first<<" "<<+std::get<0>(pv).second<<" "<<+std::get<1>(pv)<<" "<<+std::get<2>(pv)<<" "<<std::get<3>(pv)<<" ";
       fout_evo<<"\n";
     }
+  }
   
-  pt.PrintTable(fname_phenotype);
+  //pt.PrintTable(fname_phenotype);
   
 }
 

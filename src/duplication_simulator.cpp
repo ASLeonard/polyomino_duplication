@@ -195,7 +195,7 @@ void EvolutionRunner() {
   }
 }
 
-void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::map<Phenotype_ID, std::tuple<uint32_t, uint16_t, PhenotypeEdgeInformation > >& Homology_tracker,uint32_t generation, uint16_t pop_index) {
+void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::vector<std::tuple<Phenotype_ID,uint32_t, uint16_t, PhenotypeEdgeInformation > >& Homology_tracker,uint32_t generation, uint16_t pop_index) {
   //shift all observations 1 generation down
   for(auto& kv : PG.PID_tracker) {
     kv.second.front()=false;
@@ -235,15 +235,25 @@ void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::map<Phenotype_ID, std:
   if(PG.PID_tracker.size()==1 && std::accumulate(PG.PID_tracker.begin()->second.begin(),PG.PID_tracker.begin()->second.end(),0)==PG.PID_depth) {
     const auto pid= PG.PID_tracker.begin()->first;
     if(PG.PID_lineage.find(pid)==PG.PID_lineage.end()) {
-
-    }
-    if(Homology_tracker.find(pid)==Homology_tracker.end())
+      PG.PID_lineage.emplace(pid);
+      
+      //}
+    //if(Homology_tracker.find(pid)==Homology_tracker.end())
       //return;
-      Homology_tracker[pid] = PG.PID_details[pid];
+      auto combined_details=std::tuple_cat(std::tie(pid),PG.PID_details[pid]);
+      auto iter=std::find(Homology_tracker.begin(),Homology_tracker.end(),combined_details);
+      size_t hierarchy_index;
+      if(iter==Homology_tracker.end()) {
+        hierarchy_index=Homology_tracker.size();
+        Homology_tracker.emplace_back(combined_details); 
+      }
+      else
+        hierarchy_index = std::distance(Homology_tracker.begin(), iter);
+      PG.PID_hierarchy.emplace_back(hierarchy_index);
+    }
   }
   
 }
-
 
 
 void EvolvePopulation(std::string run_details) {
@@ -257,7 +267,7 @@ void EvolvePopulation(std::string run_details) {
   
   std::ofstream fout_selection_history, fout_phenotype_IDs, fout_size, fout_interactions2;
 
-  const bool FULL_WRITE=false;
+  const bool FULL_WRITE=true;
   if(FULL_WRITE) {
     fout_selection_history.open(file_base_path+"Selections"+file_simulation_details,std::ios::binary);
     fout_phenotype_IDs.open(file_base_path+"PIDs"+file_simulation_details,std::ios::out );
@@ -269,8 +279,8 @@ void EvolvePopulation(std::string run_details) {
   
   
 
-  std::map<Phenotype_ID, std::tuple< uint32_t,uint16_t, PhenotypeEdgeInformation > > evolution_record;
-  //std::set
+  std::vector<std::tuple<Phenotype_ID, uint32_t,uint16_t, PhenotypeEdgeInformation > > evolution_record;
+  std::set< std::vector<size_t> > global_sets;
     
   std::vector<double> population_fitnesses(simulation_params::population_size);
   std::vector<PopulationGenotype> evolving_population(simulation_params::population_size),reproduced_population;
@@ -342,6 +352,8 @@ void EvolvePopulation(std::string run_details) {
       
 
       UpdatePhylogenyTrackers(evolving_genotype,evolution_record,generation,nth_genotype);
+      if(!evolving_genotype.PID_hierarchy.empty())
+        global_sets.emplace(evolving_genotype.PID_hierarchy);
       
       for(const auto& pid_kv : evolving_genotype.pid_interactions) {
         for(const auto& ints_kv : pid_kv.second) {
@@ -394,12 +406,20 @@ void EvolvePopulation(std::string run_details) {
 
 #pragma omp critical(evo_record_write)
   {
-  for(auto kv : evolution_record) {
-    fout_evo<<+kv.first.first<<" "<<+kv.first.second<<" "<<std::get<0>(kv.second)<<" "<<std::get<1>(kv.second)<<" ";
-      for(auto pv : std::get<2>(kv.second))
-        fout_evo<<+std::get<0>(pv).first<<" "<<+std::get<0>(pv).second<<" "<<+std::get<1>(pv)<<" "<<+std::get<2>(pv)<<" "<<std::get<3>(pv)<<" ";
-      fout_evo<<"\n";
+  for(const auto& kv : evolution_record) {
+    const auto pid = std::get<0>(kv);
+    fout_evo<<+pid.first<<" "<<+pid.second<<" "<<std::get<1>(kv)<<" "<<std::get<2>(kv)<<" ";
+    for(const auto& pv : std::get<3>(kv))
+      fout_evo<<+std::get<0>(pv).first<<" "<<+std::get<0>(pv).second<<" "<<+std::get<1>(pv)<<" "<<+std::get<2>(pv)<<" "<<std::get<3>(pv)<<" ";
+    fout_evo<<"\n";
     }
+  for(const auto& evo_route : global_sets) {
+    for(const auto& element : evo_route)
+      fout_evo << element << " ";
+    fout_evo <<", ";
+  }
+  fout_evo << "\n\n";
+
   }
   
   //pt.PrintTable(fname_phenotype);

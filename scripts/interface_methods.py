@@ -45,7 +45,7 @@ def loadData(S,fname='Discovs'):
      return [[int(i) for i in line.split()] for line in open('/rscratch/asl47/Discs/{}{:.6f}.BIN'.format(fname,S))]
 
 def loadBinary(S,fname='Discovs',shape=(-1)):
-     return np.fromfile('/rscratch/asl47/Discs/{}{:.6f}.BIN'.format(fname,S),dtype=np.uint8).reshape(shape)
+     return np.fromfile('/rscratch/asl47/Duplication/Metrics/{}_{:.6f}.BIN'.format(fname,S),dtype=np.uint32).reshape(shape)
 
 def plotDecors(low,high):
      #plt.figure()
@@ -82,27 +82,26 @@ def plotBonds(data):
      print("happened ",counters,xc)
      plt.show(block=False)
      
-def plotDiscovery(l_I):
+def plotDiscovery(l_I,lower,upper):
      def SF_sym(S_stars):
-          return 1/binom(l_I/2,.5).sf(np.ceil(l_I/2*S_stars)-1)
+          return 1/binom(l_I/2,.5).sf(l_I/2*S_stars-1)
      def SF_asym(S_stars):
-          return 1/binom(l_I,.5).sf(np.ceil(l_I*S_stars)-1)
+          return 1/binom(l_I,.5).sf(l_I*S_stars-1)
      
      plt.figure()
-     s_hats=np.linspace(0,1,65)[34:55]
+     s_hats=np.linspace(0,1,l_I+1)[lower:upper+1:2]
      
      data=[]
      for s in s_hats:
-          for tds,form in zip(loadData(s),('S','A')):
-               for td in tds:
-                    if td>0:
-                         data.append({'td': td, 'sym': form,'thresh':s})
+          for row,form in zip(loadBinary(s,'Discovery',(2,-1)),('R','D')):
+               for val in np.log10(row):
+                    data.append({'td': val, 'sym': form,'thresh':s})
 
      df=pandas.DataFrame(data)
-     ax = sns.violinplot(x="thresh", y="td", hue="sym",data=df, cut=0,gridpoints=1000,palette="Set2", split=True,scale="count", inner="quartile")
-     ax.plot(range(len(s_hats)),SF_asym(s_hats),ls='--',c='coral',marker='D',mec='k',mfc='None')
-     ax.plot(range(0,len(s_hats),2),SF_sym(s_hats[::2]),ls='--',c='forestgreen',marker='h',mec='w',mfc='None')
-     ax.set_yscale('log')
+     ax = sns.violinplot(x="thresh", y="td", hue="sym",data=df, cut=0,palette="Set2", split=True,scale="count", inner="quartile",bw=.1)
+     ax.plot(range(len(s_hats)),np.log10(SF_asym(s_hats)),ls='--',c='coral',marker='D',mec='k',mfc='None')
+     ax.plot(range(0,len(s_hats)),np.log10(SF_sym(s_hats)),ls='--',c='forestgreen',marker='h',mec='w',mfc='None')
+     #ax.set_yscale('log')
      _=ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
      ax.set(xlabel=r'$\hat{S}_c$', ylabel=r'$\langle \tau_D \rangle$')
      ax.set_title('Discovery time of symmetric and asymmetric interactions')
@@ -111,7 +110,7 @@ def plotDiscovery(l_I):
      for lz,col in zip((32,64,128),('royalblue','darkmagenta','indianred')):
           sts=np.linspace(0,1,lz)[lz//2:]
           l_I=lz
-          ab.plot(sts,SF_asym(sts)/SF_sym(sts),ls='--',marker='o',mfc='None',mec=col,c=col,label=lz,lw=2)
+          #ab.plot(sts,SF_asym(sts)/SF_sym(sts),ls='--',marker='o',mfc='None',mec=col,c=col,label=lz,lw=2)
      ab.set_yscale('log')
      ab.legend()
      ab.set_title(r'$Q \langle \tau_D \rangle$')

@@ -74,13 +74,23 @@ def writeDomains(pdb_list,class_type='SCOP'):
 def readDomains(file_name='SCOP'):
      with open('domain_architectures_{}.json'.format(file_name)) as f:
           return json.load(f)
-          
 
+from collections import Counter
+def getUniqueHomodimerDomains(top_X=None):
+     if top_X is None:
+          return {tuple(v) for vals in readDomains('HCath').values() for v in vals.values()}
+     else:
+          counted_domains=Counter([tuple(v) for vals in readDomains('HCath').values() for v in vals.values()])
+          return {mc[0] for mc in counted_domains.most_common(top_X)}
+          
+     
+     
 def scrubInput(path,local_alignment=True,similarity=True,domain='SCOP'):
      df = pd.DataFrame(index=['Hom', 'Het'],columns=['Null', 'Dimer'])
      rows_list = []
      BSAs_raw=[line.rstrip().split() for line in open('/scratch/asl47/PDB/Inputs/{}.txt'.format(path))]
      domain_dict=readDomains(domain)
+     homomer_domains=getUniqueHomodimerDomains(100)
      BSAs={}
      for bsa in BSAs_raw[1:]:
           BSAs[bsa[0]]=(float(bsa[2])-float(bsa[1]))/2
@@ -109,6 +119,15 @@ def scrubInput(path,local_alignment=True,similarity=True,domain='SCOP'):
                if d['id'][:4] in domain_dict:
                     chains=raw[1].split()
                     d['domain']=domainMatch(domain_dict[d['id'][:4]],*chains)
+                    if d['domain']=='full' or d['domain']=='partial':
+                         d['d_group']=any([tuple(domain_dict[d['id'][:4]][c]) in homomer_domains for c in chains])
+                    #elif 'Homodimer' in path:
+                    #     d['d_group']=None
+                    else:
+                         d['d_group']='none'
+                    
+                         
+                         
                else:
                     d['domain']='unknown'
 
@@ -116,6 +135,7 @@ def scrubInput(path,local_alignment=True,similarity=True,domain='SCOP'):
                     aligns=tuple(filter(lambda element: 'TM-score' in element,raw))
                     d['TM']=float(aligns[0].split()[1])
                     d['S_pred']= 'no' if d['TM']<=.2 else 'yes' if d['TM']>=.5 else 'maybe'
+                    
 
           except Exception as e:
                print("Exception",e)
@@ -138,7 +158,7 @@ def plotData(data,stat_func=''):
      #g2 = sns.jointplot(x="TM", y="BSA",data=data,xlim=(0,1))
      sns.relplot(x='TM', y='BSA', size="BSA",sizes=(40, 400),hue='domain', alpha=.75, height=6, data=data)
      plt.figure()
-     ax = sns.violinplot(x="domain", y="BSA",hue='H_pred', data=data, palette="muted",split=False,  scale="count",scale_hue=False,inner="quartile",bw=.1)
+     ax = sns.violinplot(x="domain", y="BSA",hue='d_group', data=data, palette="muted",split=False,  scale="width",scale_hue=False,inner="quartile",bw=.1)
      
      plt.show(block=False)
 
@@ -152,7 +172,7 @@ def plotData(data,stat_func=''):
      
      print("\np-value: {}\n".format(ss.mannwhitneyu(high['BSA'],low['BSA'],alternative='greater')[1]))
      for overlap in ('full','partial','none','NA'):
-          print(overlap,"({})".format(len(data.loc[data['domain']==overlap])),np.nanmean([float(i) for i in data.loc[data['domain']==overlap]['BSA']]))
+          print(overlap,"({})".format(len(data.loc[data['domain']==overlap])),np.nanmedian([float(i) for i in data.loc[data['domain']==overlap]['BSA']]))
 
      domain_yes=x=data.loc[(data['domain']=='full') | (data['domain']=='partial')]
      domain_no=x=data.loc[~(data['domain']=='full') & ~(data['domain']=='partial')]

@@ -20,8 +20,6 @@ import matplotlib.cm as cm
 #GLOBAL PIDS
 null_pid,init_pid=np.array([0,0],dtype=np.uint8),np.array([1,0],dtype=np.uint8)
 
-
-
 def plotBs(a):
      plt.figure()
      c=['r','b','g']
@@ -82,32 +80,46 @@ def readEvoRecord(run):
           parts=l.split()
           d[tuple(int(i) for i in parts[:2])]=tuple(int(i) for i in parts[2:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)])
      return d
-
-def readEvoRecord2(mu,S_c,rate,duplicate=True):
+def readEvoRecord3(mu,S_c,rate,duplicate=True):
      lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/EvoRecords/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
+     simulations=[{}]
+     for line in lines:
+          if line == '':
+               continue
+          elif ',' in line:
+               pass
+          else:
+               simulations[-1]
+     return lines
+def readEvoRecord2(mu,S_c,rate,duplicate=True):
+     lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/EvoRecords/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))][:-2]
      d=[{}]
+     #print(lines)
      prev_phen_size=(0,0)
      for l in lines:
           parts=l.split()
           key=tuple(int(i) for i in parts[:2])
-          d[-1][key]=tuple(int(i) for i in parts[2:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)])
           if key <= prev_phen_size:
                d.append({})
+          d[-1][key]=tuple(int(i) for i in parts[2:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)])
+          
           prev_phen_size=key
                
                
-     return d
+     return [dict_run for dict_run in d if dict_run]
 
 from scipy import stats
 import pandas as pd
 def compileEvoRecord(runs):
      
      data=[]
-     for r in runs:
+     cnt=-1
+     for simulation in runs:
+          cnt+=1
           occurences=defaultdict(int)
           initial_homologies={}
           initial_edges={}
-          dp={v[0]:v[2:] for v in sorted(readEvoRecord(r).values())}
+          dp={v[0]:v[2:] for v in sorted(simulation.values())}
           for gen,v in dp.items():
                minimals=defaultdict(list)
                for edge in v:
@@ -124,6 +136,13 @@ def compileEvoRecord(runs):
                
                for edge in v:
                     edge_pair=tuple(e%4 for e in edge[:2])
+                    if occurences[edge_pair] == 0 and edge[2] != initial_homologies[edge_pair]:
+                         if cnt in []:
+                              continue
+                         print(cnt)
+                         print(edge_pair,occurences[edge_pair], edge[2], initial_homologies[edge_pair])
+                         return simulation
+                         
 
                     data.append({'occurence':occurences[edge_pair],'generation':gen,'t_0':gen-initial_edges[edge_pair],'homology':edge[2],'edge_pair':edge_pair[0]==edge_pair[1],'h_0':initial_homologies[edge_pair]})
 
@@ -134,6 +153,23 @@ def compileEvoRecord(runs):
 
 def readCompiledEvoRecord(add_type='Dup', T='High'):
      return pd.read_csv('/rscratch/asl47/EvoRecords/EvoRecord_{}_{}.pd'.format(add_type,T))
+
+def plotE2(df,norm=True):
+     f,axes=plt.subplots(2,1)
+     data=np.zeros((2,2500,129))
+     
+     for row in df.itertuples(index=False):
+          data[int(row[0]),row[1],row[3]]+=1
+
+     if norm:
+          data=np.apply_along_axis(norm_rows,1,data.astype(np.float))
+     pop_grid= ma.masked_equal(data,0)
+
+     for index,ax in enumerate(axes):
+          px=ax.pcolormesh(pop_grid[index].T,cmap='RdGy',norm=mpc.LogNorm(vmin=pop_grid[index].min(), vmax=pop_grid[index].max()))
+          f.colorbar(px,ax=ax)#ax.colorbar(px)
+     plt.show(block=False)
+     
 def plotEvoRecord(df,key='occurence'):
      f,ax=plt.subplots()
 
@@ -145,8 +181,8 @@ def plotEvoRecord(df,key='occurence'):
      rand_data=defaultdict(list)
      for xv,h_0,hom in zip(df[key],df['h_0'],df['homology']):
           if h_0<=40:
-               if hom==0:
-                    continue
+               #if xv!=0 and hom==0:
+               #     continue
                homol_data[xv].append(hom)
           else:
                rand_data[xv].append(hom)
@@ -159,7 +195,8 @@ def plotEvoRecord(df,key='occurence'):
      for group,c in zip((rand_data,homol_data),('k','r')): 
           plt.plot(sorted(group)[max(0,window//2-1):-window//2],running_mean([np.median(group[k]) for k in sorted(group)],window),c=c,lw=2)
 
-
+     if key == 't_0':
+          plt.plot(64*(1-np.exp(-np.arange(max(df['t_0']))/(256))),ls='--',c='c')
      #slope, intercept, r_value, p_value, std_err=stats.linregress(sorted(homol_data),[np.mean(homol_data[k]) for k in sorted(homol_data)])
      #plt.plot(range(min(homol_data),max(homol_data)+1),[slope*x+intercept for x in range(min(homol_data),max(homol_data)+1)],'r--')
 
@@ -168,19 +205,49 @@ def plotEvoRecord(df,key='occurence'):
      ax.set_xlabel(key,fontsize=24)
      plt.show(block=False)
 
+def getSuperSets(list_of_sets):
+     super_sets=[]
+     for l1 in range(len(list_of_sets)):
+          for l2 in range(l1+1,len(list_of_sets)):
+               if list_of_sets[l1] < list_of_sets[l2]:
+                    break
+          else:
+               super_sets.append(list_of_sets[l1])
+     return super_sets
      
-def plotDiversity(run_range,max_g,diversity=True):
-     discovs=np.zeros((len(run_range),max_g),dtype=np.uint8)
-     for r in run_range:
+def plotDiversity(data,max_g):
+     discovs=np.zeros((len(data),max_g,2),dtype=np.uint8)
+     for r,simulation in enumerate(data):
           
-          hits=sorted([(v[0],k[0]) for k,v in readEvoRecord(r).items()])
-          count_val=1 if diversity else hits[0][1]
+          hits=sorted([(v[0],k[0]) for k,v in simulation.items()])
+          count_val = 1
+          try:
+               size_val = hits[0][1]
+          except:
+               print(hits,r)
           for start,end in zip(hits,hits[1:]+[(max_g,-1)]):
-               discovs[r-run_range.start,start[0]:end[0]]=count_val
-               count_val = (count_val + 1) if diversity else max(start[1],end[1])
- 
-          
-     return discovs
+               discovs[r,start[0]:end[0]]=(count_val,size_val)
+               count_val += 1
+               size_val =  max(start[1],end[1])
+     #return discovs
+     #plt.figure()
+     def plotHatched(index):
+          y=np.mean(discovs[...,index],axis=0)
+          y_err=np.std(discovs[...,index],axis=0,ddof=1)
+          col=plt.plot(y,lw=2,label=id(data))[0].get_color()
+          y_low=np.maximum(y-y_err,0)
+        
+          #plt.plot(y_low,c=col,ls='--')
+          #plt.plot(y+y_err,c=col,ls='--')
+          #plt.fill_between(range(max_g), y_low, y+y_err,alpha=.5,hatch='////',facecolor = 'none',edgecolor=col)
+
+     
+     for index,ls in zip(range(2),('-',':')):
+          plotHatched(index)
+          #plt.fill_between(range(max_g), y-y_err, y+y_err,alpha=.2)
+          #plt.plot(,ls=ls)
+     plt.legend()
+     plt.show(block=False)
 
      
           
@@ -199,7 +266,7 @@ def getFixedPhenotypes(pids):
 def scatL(run):
      data=lls(run)
 
-     plt.figure()
+     #plt.figure()
      for pid,details in data.items():
           for edge in details[2:]:
                plt.scatter(edge[2],edge[3],c=[cm.tab20((edge[0]%4*4+edge[1]%4)/16)])
@@ -208,7 +275,7 @@ def scatL(run):
                                         
      
 def lazy(run,style='S'):
-     add_selection_layer(plotPhen2(LoadPIDHistory(run)),LSHB(run,250),run,style)
+     add_selection_layer(plotPhen2(LoadPIDHistory(run)),LSHB(run,100),run,style)
      
 def Int(run,g,c):
      return [line.rstrip() for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Interactions_Run{}.txt'.format(run))][g].split('.')[c]
@@ -288,7 +355,7 @@ def add_selection_layer(ax,selections,run,colorize='M'):
           if g_ind==(selections.shape[0]-1):
                continue
           lines.append([(g_ind+.5,selections[g_ind,p_ind]+.5),(g_ind+1.5,p_ind+.5)])
-     mutations=np.loadtxt('/scratch/asl47/Data_Runs/Bulk_Data/Mutation_Run{}.txt'.format(run),dtype=np.uint8)[:selections.shape[0]-1,:].reshape(-1)
+     #mutations=np.loadtxt('/scratch/asl47/Data_Runs/Bulk_Data/Mutation_Run{}.txt'.format(run),dtype=np.uint8)[:selections.shape[0]-1,:].reshape(-1)
      #homologies=np.genfromtxt('/scratch/asl47/Data_Runs/Bulk_Data/Homology_Run1.txt',dtype=np.float64,delimiter=",")
 
      sizes=np.loadtxt('/scratch/asl47/Data_Runs/Bulk_Data/Size_Run{}.txt'.format(run),dtype=np.uint8).reshape(-1)

@@ -21,7 +21,8 @@ struct PopulationGenotype {
 
   std::map<Phenotype_ID, std::array<bool,PID_depth> > PID_tracker;
   std::map<Phenotype_ID, std::tuple<uint32_t, uint16_t, PhenotypeEdgeInformation> > PID_details;
-  std::map<Phenotype_ID, size_t> PID_lineage;
+  std::set<Phenotype_ID> PID_lineage;
+  std::vector<size_t> PID_hierarchy;
 
   PopulationGenotype() : genotype(simulation_params::n_tiles*4) {RandomiseGenotype(genotype); subunits=genotype;};
   

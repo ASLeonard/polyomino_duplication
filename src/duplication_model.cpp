@@ -128,15 +128,13 @@ namespace interface_model
     return (face1 ^ ReverseBits(~face2)).count();
   }
 
-  std::map<Phenotype_ID,uint16_t> PolyominoAssemblyOutcome(Genotype& binary_genome,FitnessPhenotypeTable* pt,std::map<Phenotype_ID, std::map<InteractionPair,uint16_t> >& pid_interactions) {//std::map<Phenotype_ID, std::set<InteractionPair>>& pid_interactions) {
+  std::map<Phenotype_ID,uint16_t> PolyominoAssemblyOutcome(Genotype& binary_genome,FitnessPhenotypeTable* pt,std::map<Phenotype_ID, std::map<InteractionPair,uint16_t> >& pid_interactions) {
     if(binary_genome.empty())
       return {{UNBOUND_pid,1}};
       
     //InterfaceAssembly::StripNoncodingGenotype(binary_genome);
+    //Genotype genotype = StripMonomers(binary_genome);
     Genotype genotype = StripMonomers(binary_genome);
-    Genotype genotype2 = StripMonomers2(binary_genome);
-    if(genotype!=genotype2)
-      std::cout<<"bad moo"<<"\n";
     
     binary_genome=genotype;
     if(genotype.empty())

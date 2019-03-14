@@ -10,16 +10,20 @@ namespace simulation_params
   double fitness_jump=2;
   
 }
+using PhenotypeEdgeInformation = std::vector<std::tuple<InteractionPair, uint8_t, uint8_t, double> >; 
 
 struct PopulationGenotype {
-  static constexpr size_t PID_depth=25;
+  static constexpr size_t PID_depth=20;
   Genotype genotype, subunits;
-  std::vector<Phenotype_ID> pids;
-  std::map<Phenotype_ID, std::array<bool,PID_depth> > PID_tracker;
-  std::map<Phenotype_ID, std::pair<std::pair<size_t,size_t>, size_t> > PID_info;
-  std::map<Phenotype_ID, std::vector<std::tuple<InteractionPair,size_t,size_t,double> > > PID_deet;
+  //std::vector<Phenotype_ID> pids;
 
-  PopulationGenotype(void) : subunits(simulation_params::n_tiles*4) {genotype.resize(simulation_params::n_tiles*4); RandomiseGenotype(genotype);};
+  std::map<Phenotype_ID, std::map<InteractionPair,uint16_t> > pid_interactions;
+
+  std::map<Phenotype_ID, std::array<bool,PID_depth> > PID_tracker;
+  std::map<Phenotype_ID, std::tuple<uint32_t, uint16_t, PhenotypeEdgeInformation> > PID_details;
+  std::map<Phenotype_ID, size_t> PID_lineage;
+
+  PopulationGenotype() : genotype(simulation_params::n_tiles*4) {RandomiseGenotype(genotype); subunits=genotype;};
   
 };
 
@@ -27,7 +31,7 @@ struct PopulationGenotype {
 void DimerModelTable(FitnessPhenotypeTable* pt);
 
 /* Main evolution runners */
-uint32_t DiscoverInteraction(bool self_interaction); 
+uint32_t DiscoverInteraction(bool self_interaction,bool duplication=false); 
 uint32_t DecayInteraction(bool self_interaction, uint8_t gap);
 void InteractionMetrics();
 

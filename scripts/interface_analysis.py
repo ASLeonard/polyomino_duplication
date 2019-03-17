@@ -82,17 +82,29 @@ def readEvoRecord(run):
      return d
 def readEvoRecord3(mu,S_c,rate,duplicate=True):
      lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/EvoRecords/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
-     simulations=[{}]
+     print(lines)
+     simulations=[[]]
+     sets=None
      for line in lines:
           if line == '':
-               continue
+               print(sets)
+               print("new run")
+               
           elif ',' in line:
-               pass
+               sets=getSuperSets([{int(i) for i in bm.split()} for bm in line.split(',') if bm])
+               
           else:
-               simulations[-1]
-     return lines
+               parts=line.split()
+               #key=tuple(int(i) for i in parts[:2])
+               simulations[-1].append(tuple(int(i) for i in parts[:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)]))
+               
+     return simulations,sets
+
+def generateRecord(sim,sets):
+     orderedOcc={}
+     
 def readEvoRecord2(mu,S_c,rate,duplicate=True):
-     lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/EvoRecords/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))][:-2]
+     lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/EvoRecords/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
      d=[{}]
      #print(lines)
      prev_phen_size=(0,0)
@@ -123,7 +135,7 @@ def compileEvoRecord(runs):
           for gen,v in dp.items():
                minimals=defaultdict(list)
                for edge in v:
-                    edge_pair=tuple(e%4 for e in edge[:2])
+                    edge_pair=tuple(sorted(e%4 for e in edge[:2]))
                     minimals[edge_pair].append(edge[2])
                     
                for ep,homol in minimals.items():
@@ -131,23 +143,25 @@ def compileEvoRecord(runs):
                          initial_homologies[ep]=min(homol)
                     if ep not in initial_edges:
                          initial_edges[ep]=gen
-               combs={tuple(e%4 for e in edge[:2]) for edge in v}
-
                
                for edge in v:
-                    edge_pair=tuple(e%4 for e in edge[:2])
+                    edge_pair=tuple(sorted(e%4 for e in edge[:2]))
                     if occurences[edge_pair] == 0 and edge[2] != initial_homologies[edge_pair]:
                          if cnt in []:
                               continue
-                         print(cnt)
-                         print(edge_pair,occurences[edge_pair], edge[2], initial_homologies[edge_pair])
-                         return simulation
+                         #break
+                    #if occurences[edge_pair]>6:
+                    #     print(simulation)
+                         #print(cnt)
+                         #break
+                         #print(edge_pair,occurences[edge_pair], edge[2], initial_homologies[edge_pair])
+                         #return simulation
                          
 
                     data.append({'occurence':occurences[edge_pair],'generation':gen,'t_0':gen-initial_edges[edge_pair],'homology':edge[2],'edge_pair':edge_pair[0]==edge_pair[1],'h_0':initial_homologies[edge_pair]})
 
 
-               for co in combs:
+               for co in minimals.keys():
                     occurences[co]+=1
      return pd.DataFrame(data)
 
@@ -175,7 +189,7 @@ def plotEvoRecord(df,key='occurence'):
 
      for homologues in (0,1):
           d=df.loc[df['edge_pair']==homologues]
-          plt.scatter(d[key],d['homology'],c=d['h_0'],alpha=0.5,cmap='plasma',norm=Normalize(0,90),marker=('o','s')[homologues])
+          plt.scatter(d[key],d['homology'],c=d['occurence'],alpha=0.5,cmap='plasma',marker=('o','s')[homologues])#,norm=Normalize(0,90))
 
      homol_data=defaultdict(list)
      rand_data=defaultdict(list)
@@ -196,7 +210,7 @@ def plotEvoRecord(df,key='occurence'):
           plt.plot(sorted(group)[max(0,window//2-1):-window//2],running_mean([np.median(group[k]) for k in sorted(group)],window),c=c,lw=2)
 
      if key == 't_0':
-          plt.plot(64*(1-np.exp(-np.arange(max(df['t_0']))/(256))),ls='--',c='c')
+          plt.plot(64*(1-np.exp(-np.arange(max(df['t_0']))/2/(256))),ls='--',c='c')
      #slope, intercept, r_value, p_value, std_err=stats.linregress(sorted(homol_data),[np.mean(homol_data[k]) for k in sorted(homol_data)])
      #plt.plot(range(min(homol_data),max(homol_data)+1),[slope*x+intercept for x in range(min(homol_data),max(homol_data)+1)],'r--')
 

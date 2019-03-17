@@ -158,7 +158,7 @@ def plotData(data,stat_func=''):
      #g2 = sns.jointplot(x="TM", y="BSA",data=data,xlim=(0,1))
      sns.relplot(x='TM', y='BSA', size="BSA",sizes=(40, 400),hue='domain', alpha=.75, height=6, data=data)
      plt.figure()
-     ax = sns.violinplot(x="domain", y="BSA",hue='d_group', data=data, palette="muted",split=False,  scale="width",scale_hue=False,inner="quartile",bw=.1)
+     ax = sns.violinplot(x="domain", y="BSA",hue='d_group', data=data, palette="muted",split=False,  scale="width",scale_hue=True,inner="quartile",bw=.1)
      
      plt.show(block=False)
 
@@ -178,8 +178,6 @@ def plotData(data,stat_func=''):
      domain_no=x=data.loc[~(data['domain']=='full') & ~(data['domain']=='partial')]
      print("\np-value: {}".format(ss.mannwhitneyu(domain_yes['BSA'],domain_no['BSA'],alternative='greater')[1]))
      print(np.nanmedian(domain_yes['BSA']),np.nanmedian(domain_no['BSA']))
-     
-
 
 
 def loadLevy():

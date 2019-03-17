@@ -319,6 +319,11 @@ void EvolvePopulation(std::string run_details) {
         std::cout<<"NULL GENOTYPE AT START OF GENERATION\ngen "<<generation<<" nth "<<nth_genotype<<"\n";
         return;
       }
+      if(evolving_genotype.genotype.size()>256) {
+        std::cout<<"TOO LONG GENOTYPE\ngen "<<generation<<" nth "<<nth_genotype<<"\n";
+        return;
+      }
+      
       InterfaceAssembly::Mutation(evolving_genotype.genotype,1,1,1);
             
       evolving_genotype.subunits=evolving_genotype.genotype;
@@ -338,10 +343,10 @@ void EvolvePopulation(std::string run_details) {
         population_fitnesses[nth_genotype]=1;
         break;
       default:
-        if(evolving_genotype.genotype.size()>(8*pid_map.rbegin()->first.first))
-          population_fitnesses[nth_genotype]=0; //oversized genotype
-        else
-          population_fitnesses[nth_genotype]=pt.GenotypeFitness(pid_map);
+        //if(evolving_genotype.genotype.size()>(8*pid_map.rbegin()->first.first))
+        //  population_fitnesses[nth_genotype]=0; //oversized genotype
+        //else
+        population_fitnesses[nth_genotype]=pt.GenotypeFitness(pid_map);
       }
 
       //Add pids to genotype

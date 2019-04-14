@@ -1,4 +1,4 @@
-from interface_methods import *
+#from interface_methods import *
 import numpy as np
 
 from copy import deepcopy
@@ -80,28 +80,60 @@ def readEvoRecord(run):
           parts=l.split()
           d[tuple(int(i) for i in parts[:2])]=tuple(int(i) for i in parts[2:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)])
      return d
-def readEvoRecord3(mu,S_c,rate,duplicate=True):
-     lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/EvoRecords/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
-     print(lines)
+def readEvoRecord3(mu,S_c,rate,duplicate=True):#/rscratch/asl47/Duplication/EvoRecords/
+     lines=[line.rstrip() for line in open('EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
+
      simulations=[[]]
-     sets=None
+     sets=[]
      for line in lines:
           if line == '':
-               print(sets)
-               print("new run")
+               simulations.append([])
                
           elif ',' in line:
-               sets=getSuperSets([{int(i) for i in bm.split()} for bm in line.split(',') if bm])
+               sets.append(getSuperSets([{int(i) for i in bm.split()} for bm in line.split(',') if bm]))
                
           else:
                parts=line.split()
-               #key=tuple(int(i) for i in parts[:2])
                simulations[-1].append(tuple(int(i) for i in parts[:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)]))
                
-     return simulations,sets
+     return simulations[:-1],sets
 
-def generateRecord(sim,sets):
-     orderedOcc={}
+def generateRecord(full_simulations,full_sets):
+     
+     DATA=[]
+     i=-1
+     for sim, sets in zip(full_simulations,full_sets):
+          i+=1
+          trimmed_nodes=[]
+          node_details=defaultdict(dict)
+          for branch in sets:
+               initial_details={}
+               for leaf,parent in zip(branch,[-1]+branch):
+                    minimals=defaultdict(list)
+                    for edge in sim[leaf][4:]:
+                         edge_pair=tuple(sorted(e%4 for e in edge[:2]))
+                         minimals[edge_pair].append(edge[2])
+                         
+                    for ep,homol in minimals.items():
+                         if parent == -1 or ep not in node_details[parent]:
+                              node_details[leaf][ep]=[min(homol),sim[leaf][2],0]
+                         else:
+                              node_details[leaf][ep]=node_details[parent][ep][:]
+                              node_details[leaf][ep][2]+=1
+                                   
+                    if leaf in trimmed_nodes:
+                         continue
+                    else:
+                         trimmed_nodes.append(leaf)
+                         
+                    for edge in sim[leaf][4:]:
+                         edge_pair=tuple(sorted(e%4 for e in edge[:2]))
+                         if (sim[leaf][2]-node_details[leaf][edge_pair][1])<0:
+                              print(i,edge,branch)
+                         DATA.append({'occurence':node_details[leaf][edge_pair][2],'generation':sim[leaf][2],'t_0':sim[leaf][2]-node_details[leaf][edge_pair][1],'homology':edge[2],'edge_pair':edge_pair[0]==edge_pair[1],'h_0':node_details[leaf][edge_pair][0]})
+
+               
+     return pd.DataFrame(DATA)
      
 def readEvoRecord2(mu,S_c,rate,duplicate=True):
      lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/EvoRecords/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
@@ -226,7 +258,7 @@ def getSuperSets(list_of_sets):
                if list_of_sets[l1] < list_of_sets[l2]:
                     break
           else:
-               super_sets.append(list_of_sets[l1])
+               super_sets.append(sorted(list_of_sets[l1]))
      return super_sets
      
 def plotDiversity(data,max_g):

@@ -173,24 +173,14 @@ void EvolveHomology(std::string run_details,bool self) {
 void EvolutionRunner() {
   /*!PYTHON INFORMATION*/
 
-  Phenotype::DETERMINISM_LEVEL=3;
+  Phenotype::DETERMINISM_LEVEL=1;
   KILL_BACK_MUTATIONS=true;
-  const std::string py_exec = "python3 ";
-  const std::string py_loc = "~/Documents/PolyDev/duplication/scripts/interface_analysis.py ";
-  const std::string py_mode="internal "+std::to_string(simulation_params::model_type);
-  
-  const std::string py_CALL=py_exec + py_loc + py_mode + " "+std::to_string(BINARY_WRITE_FILES)+" ";
-  const std::string python_params=" "+std::to_string(InterfaceAssembly::binding_threshold)+" "+std::to_string(InterfaceAssembly::temperature)+" "+std::to_string(InterfaceAssembly::mutation_rate)+" "+std::to_string(InterfaceAssembly::duplication_rate)+" "+std::to_string(InterfaceAssembly::insertion_rate)+" "+std::to_string(InterfaceAssembly::deletion_rate)+" "+std::to_string(simulation_params::population_size);
 
   const uint16_t N_runs=simulation_params::independent_trials;
 #pragma omp parallel for schedule(dynamic) 
   for(uint16_t r=0;r < N_runs;++r) {
-    //EvolveHomology("_Run"+std::to_string(r+simulation_params::run_offset),r%2);
+   
     EvolvePopulation("_Run"+std::to_string(r+simulation_params::run_offset));
-    /*!PYTHON CALL*/
-    //std::system((py_CALL+std::to_string(r)+python_params).c_str());
-    /*!PYTHON CALL*/
-
     
   }
 }
@@ -231,48 +221,54 @@ void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::vector<std::tuple<Phen
     }
   }
     
-  //Record homology for "successful" observations
-  if(PG.PID_tracker.size()==1 && std::accumulate(PG.PID_tracker.begin()->second.begin(),PG.PID_tracker.begin()->second.end(),0)==PG.PID_depth) {
-    const auto pid= PG.PID_tracker.begin()->first;
-    if(PG.PID_lineage.find(pid)==PG.PID_lineage.end()) {
-      PG.PID_lineage.emplace(pid);
-      
-      //}
-    //if(Homology_tracker.find(pid)==Homology_tracker.end())
-      //return;
-      auto combined_details=std::tuple_cat(std::tie(pid),PG.PID_details[pid]);
-      auto iter=std::find(Homology_tracker.begin(),Homology_tracker.end(),combined_details);
-      size_t hierarchy_index;
-      if(iter==Homology_tracker.end()) {
-        hierarchy_index=Homology_tracker.size();
-        Homology_tracker.emplace_back(combined_details); 
+  //iterate through all currently tracked phenotypes
+  for(const auto& tracking_element : PG.PID_tracker) {
+    const auto [pid,pid_record] = tracking_element;
+    //this pid has survived long enough to be meaningful
+    if(std::accumulate(pid_record.begin(),pid_record.end(),0)==PG.PID_depth) {
+
+
+      //if this pid is not in the individuals lineage, add it and update global record
+      if(PG.PID_lineage.find(pid)==PG.PID_lineage.end() && (PG.PID_lineage.empty() || pid.first>PG.PID_lineage.crbegin()->first)) {
+        PG.PID_lineage.emplace(pid);
+
+        auto combined_details=std::tuple_cat(std::tie(pid),PG.PID_details[pid]);
+        auto iter=std::find(Homology_tracker.begin(),Homology_tracker.end(),combined_details);
+        size_t hierarchy_index;
+        if(iter==Homology_tracker.end()) {
+          hierarchy_index=Homology_tracker.size();
+          Homology_tracker.emplace_back(combined_details); 
+        }
+        else
+          hierarchy_index = std::distance(Homology_tracker.begin(), iter);
+        PG.PID_hierarchy.emplace_back(hierarchy_index);
+
       }
-      else
-        hierarchy_index = std::distance(Homology_tracker.begin(), iter);
-      PG.PID_hierarchy.emplace_back(hierarchy_index);
     }
   }
-  
 }
 
 
 void EvolvePopulation(std::string run_details) {
   std::string file_simulation_details=run_details+".txt";
     
-  std::ofstream fout_strength(file_base_path+"Strengths"+file_simulation_details,std::ios::binary);
-  std::ofstream fout_zomology(file_base_path+"Zomology"+file_simulation_details,std::ios::binary);
+  //
+
   std::ofstream fout_evo(shared_base_path+"EvoRecord_Mu"+std::to_string(InterfaceAssembly::mutation_rate)+"_S"+std::to_string(InterfaceAssembly::binding_threshold)+(InterfaceAssembly::duplication_rate > InterfaceAssembly::insertion_rate ? "_D" + std::to_string(InterfaceAssembly::duplication_rate) : "_I" + std::to_string(InterfaceAssembly::insertion_rate))+".txt",std::ios::app );
   
   std::string fname_phenotype(file_base_path+"PhenotypeTable"+file_simulation_details);
   
-  std::ofstream fout_selection_history, fout_phenotype_IDs, fout_size, fout_interactions2;
+  std::ofstream fout_selection_history, fout_phenotype_IDs, fout_size, fout_interactions2, fout_strength, fout_zomology;
 
-  const bool FULL_WRITE=true;
+  const bool FULL_WRITE=false;
   if(FULL_WRITE) {
     fout_selection_history.open(file_base_path+"Selections"+file_simulation_details,std::ios::binary);
     fout_phenotype_IDs.open(file_base_path+"PIDs"+file_simulation_details,std::ios::out );
     fout_size.open(file_base_path+"Size"+file_simulation_details,std::ios::out);
     fout_interactions2.open(file_base_path+"Binteractions"+file_simulation_details,std::ios::out);
+
+    fout_strength.open(file_base_path+"Strengths"+file_simulation_details,std::ios::binary);
+    fout_zomology.open(file_base_path+"Zomology"+file_simulation_details,std::ios::binary);
     
   }
 
@@ -288,7 +284,7 @@ void EvolvePopulation(std::string run_details) {
 
   std::vector<uint16_t> binary_homologies(interface_size+1), binary_strengths(interface_size+1);
   
-  Phenotype::DETERMINISM_LEVEL=1;
+  
   FitnessPhenotypeTable pt = FitnessPhenotypeTable();
   pt.fit_func=[](double s) {return s;};
 
@@ -392,15 +388,15 @@ void EvolvePopulation(std::string run_details) {
     }
     evolving_population.swap(reproduced_population);
     
-    
-    //BinaryWriter(fout_zomology,binary_homologies);
-    //BinaryWriter(fout_strength,binary_strengths);
 
     if(FULL_WRITE) {
       BinaryWriter(fout_selection_history,reproducing_selection);
       fout_phenotype_IDs<<"\n";
       fout_size<<"\n";
       fout_interactions2<<"\n";
+
+      BinaryWriter(fout_zomology,binary_homologies);
+      BinaryWriter(fout_strength,binary_strengths);
     }
 
 
@@ -445,6 +441,7 @@ int main(int argc, char* argv[]) {
 
   run_option=argv[1][1];
   SetRuntimeConfigurations(argc,argv);
+  Genotype g(4);
   
   switch(run_option) {
   case 'B':
@@ -455,6 +452,11 @@ int main(int argc, char* argv[]) {
     break;
   case 'M':
     InteractionMetrics();
+    break;
+  case 'X':
+    GenotypeInsertion(g);
+    for(auto x : g)
+      std::cout<<x<<"\n";
     break;
   case '?':
     InterfaceAssembly::PrintBindingStrengths();

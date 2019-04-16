@@ -1,4 +1,4 @@
-#from interface_methods import *
+from interface_methods import *
 import numpy as np
 
 from copy import deepcopy
@@ -81,13 +81,15 @@ def readEvoRecord(run):
           d[tuple(int(i) for i in parts[:2])]=tuple(int(i) for i in parts[2:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)])
      return d
 def readEvoRecord3(mu,S_c,rate,duplicate=True):#/rscratch/asl47/Duplication/EvoRecords/
-     lines=[line.rstrip() for line in open('EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
+     lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/EvoRecords/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
+
 
      simulations=[[]]
      sets=[]
      for line in lines:
           if line == '':
-               simulations.append([])
+               if simulations[-1]:
+                    simulations.append([])
                
           elif ',' in line:
                sets.append(getSuperSets([{int(i) for i in bm.split()} for bm in line.split(',') if bm]))
@@ -98,17 +100,52 @@ def readEvoRecord3(mu,S_c,rate,duplicate=True):#/rscratch/asl47/Duplication/EvoR
                
      return simulations[:-1],sets
 
+def cleanRecord(full_simulations,full_sets):
+
+     def growthCondition(phenotypes,sequence):
+          if len(sequence) == 1:
+               return True
+          elif phenotypes[sequence[-1]][0]<=phenotypes[sequence[-2]][0]:
+               del sequence[-1]
+               growthCondition(phenotypes,sequence)
+          else:
+               return True
+
+     def stripRedundancy(sequences):
+          #{item for sublist in sequences for item in sublist}
+          return tuple(set((tuple(seq) for seq in sequences)))
+     #def stripTrivials(sequences):
+     #     return [i for i in a if len(i)>1]tuple(set((tuple(seq) for seq in sequences)))
+
+     ##main loop
+     for i, (sim,sets) in enumerate(zip(full_simulations,full_sets)):
+          for single_set in sets:
+               try:
+                    growthCondition(sim,single_set)
+               except:
+                    print(sim,single_set)
+          clean_set=stripRedundancy(sets)
+          full_sets[i]=[fset for fset in clean_set if len(fset)>1]
+          
 def generateRecord(full_simulations,full_sets):
-     
+
+     def edgeTopology(ep):
+          if ep[0] == ep[1]:
+               return 1
+          elif ep[0]%4 == ep[1]%4:
+               return 2
+          else:
+               return 0
+          
      DATA=[]
-     i=-1
      for sim, sets in zip(full_simulations,full_sets):
-          i+=1
           trimmed_nodes=[]
           node_details=defaultdict(dict)
           for branch in sets:
                initial_details={}
-               for leaf,parent in zip(branch,[-1]+branch):
+               for leaf,parent in zip(branch,(-1,)+branch):
+
+                    ##calculate supporting information on homology, occurence, etc.
                     minimals=defaultdict(list)
                     for edge in sim[leaf][4:]:
                          edge_pair=tuple(sorted(e%4 for e in edge[:2]))
@@ -125,12 +162,13 @@ def generateRecord(full_simulations,full_sets):
                          continue
                     else:
                          trimmed_nodes.append(leaf)
-                         
+
+                    ##use supporting information to create data row for this transition
                     for edge in sim[leaf][4:]:
                          edge_pair=tuple(sorted(e%4 for e in edge[:2]))
                          if (sim[leaf][2]-node_details[leaf][edge_pair][1])<0:
                               print(i,edge,branch)
-                         DATA.append({'occurence':node_details[leaf][edge_pair][2],'generation':sim[leaf][2],'t_0':sim[leaf][2]-node_details[leaf][edge_pair][1],'homology':edge[2],'edge_pair':edge_pair[0]==edge_pair[1],'h_0':node_details[leaf][edge_pair][0]})
+                         DATA.append({'occurence':node_details[leaf][edge_pair][2],'generation':sim[leaf][2],'t_0':sim[leaf][2]-node_details[leaf][edge_pair][1],'homology':edge[2],'edge_pair': edgeTopology(edge[:2]),'h_0':node_details[leaf][edge_pair][0],'dup':(node_details[leaf][edge_pair][0]==0)+2*(node_details[leaf][edge_pair][0]==edge[2])})
 
                
      return pd.DataFrame(DATA)
@@ -219,9 +257,9 @@ def plotE2(df,norm=True):
 def plotEvoRecord(df,key='occurence'):
      f,ax=plt.subplots()
 
-     for homologues in (0,1):
+     for homologues in (0,1,2):
           d=df.loc[df['edge_pair']==homologues]
-          plt.scatter(d[key],d['homology'],c=d['occurence'],alpha=0.5,cmap='plasma',marker=('o','s')[homologues])#,norm=Normalize(0,90))
+          plt.scatter(d[key],d['homology'],c=d['h_0'],alpha=0.5,cmap='cividis',marker=('d','P','.')[homologues],norm=Normalize(0,100))
 
      homol_data=defaultdict(list)
      rand_data=defaultdict(list)
@@ -251,6 +289,9 @@ def plotEvoRecord(df,key='occurence'):
      ax.set_xlabel(key,fontsize=24)
      plt.show(block=False)
 
+     #sns.swarmplot(x='occurence',y='homology',hue='dup',data=df3)
+     #ns.violinplot(x='occurence',y='homology',hue='dup',data=df3)
+
 def getSuperSets(list_of_sets):
      super_sets=[]
      for l1 in range(len(list_of_sets)):
@@ -265,7 +306,7 @@ def plotDiversity(data,max_g):
      discovs=np.zeros((len(data),max_g,2),dtype=np.uint8)
      for r,simulation in enumerate(data):
           
-          hits=sorted([(v[0],k[0]) for k,v in simulation.items()])
+          hits=sorted([(v[2],v[0]) for v in simulation])
           count_val = 1
           try:
                size_val = hits[0][1]
@@ -283,9 +324,9 @@ def plotDiversity(data,max_g):
           col=plt.plot(y,lw=2,label=id(data))[0].get_color()
           y_low=np.maximum(y-y_err,0)
         
-          #plt.plot(y_low,c=col,ls='--')
-          #plt.plot(y+y_err,c=col,ls='--')
-          #plt.fill_between(range(max_g), y_low, y+y_err,alpha=.5,hatch='////',facecolor = 'none',edgecolor=col)
+          plt.plot(y_low,c=col,ls='--')
+          plt.plot(y+y_err,c=col,ls='--')
+          plt.fill_between(range(max_g), y_low, y+y_err,alpha=.5,hatch='////',facecolor = 'none',edgecolor=col)
 
      
      for index,ls in zip(range(2),('-',':')):

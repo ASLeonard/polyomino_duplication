@@ -40,13 +40,8 @@ double InterfaceAssembly::InteractionMatrix(const interface_type face_1,const in
 }
 
 void GenotypeInsertion(Genotype& genotype) {
-  const size_t N_edges = InterfaceAssembly::GetActiveInterfaces(genotype).size();
-  Genotype new_gene(4);
-  genotype.insert(genotype.end(),new_gene.begin(),new_gene.end());
-  do {
-    RandomiseGenotype(new_gene);
-    std::move(new_gene.begin(),new_gene.end(),genotype.rbegin());
-  } while (N_edges != InterfaceAssembly::GetActiveInterfaces(genotype).size());
+  genotype.reserve(genotype.size()+4);
+  std::generate_n(std::back_inserter(genotype), 4, InterfaceAssembly::GenRandomSite);
 }
 
 size_t GenotypeDuplication(Genotype& genotype) {
@@ -132,7 +127,8 @@ namespace interface_model
     if(binary_genome.empty())
       return {{UNBOUND_pid,1}};
       
-    //InterfaceAssembly::StripNoncodingGenotype(binary_genome);
+    InterfaceAssembly::StripNoncodingGenotype(binary_genome);
+    //Genotype genotype = binary_genome;
     //Genotype genotype = StripMonomers(binary_genome);
     Genotype genotype = StripMonomers(binary_genome);
     
@@ -143,15 +139,14 @@ namespace interface_model
     const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(genotype);
 
 
-    std::vector<int8_t> assembly_information;
     Phenotype phen;
     std::vector<Phenotype_ID> Phenotype_IDs;
     Phenotype_IDs.reserve(pt->phenotype_builds);
-    std::set<InteractionPair > interacting_indices;
+
     //std::map<Phenotype_ID, std::set<InteractionPair> > phenotype_interactions;
 
     for(uint16_t nth=0;nth<pt->phenotype_builds;++nth) {
-      assembly_information=InterfaceAssembly::AssemblePolyomino(edges,interacting_indices);
+      auto [assembly_information,interacting_indices]=InterfaceAssembly::AssemblePolyomino(edges);
       switch(assembly_information.size()) {
       case 0: //unbound
         pt->ClearIncomplete();

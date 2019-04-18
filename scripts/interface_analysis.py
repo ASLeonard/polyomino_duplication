@@ -46,7 +46,7 @@ def norm_rows(a):
 
 import matplotlib.colors as mpc
 import numpy.ma as ma
-def plotHom(run,L,norm=True,annotate=False):
+def plotHomologyEvolution(run,L,norm=True,annotate=False):
 
      f,axes=plt.subplots(2,1,sharex=True)
      for ax,func in zip(axes,('Zomology','Strengths')):
@@ -65,7 +65,7 @@ def plotHom(run,L,norm=True,annotate=False):
      if annotate:
           annotations=readEvoRecord(run)
           ax=axes[0]
-          fixed_pids=[]#{tuple(i) for i in getFixedPhenotypes(LoadPIDHistory(run))}
+          fixed_pids={tuple(i) for i in getFixedPhenotypes(LoadPIDHistory(run))}
           for pid,details in annotations.items():
                alph=1 if pid in fixed_pids else 1
                     
@@ -96,7 +96,7 @@ def readEvoRecord3(mu,S_c,rate,duplicate=True):#/rscratch/asl47/Duplication/EvoR
                
           else:
                parts=line.split()
-               simulations[-1].append(tuple(int(i) for i in parts[:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)]))
+               simulations[-1].append(tuple(int(i) for i in parts[:4])+tuple(tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)))
                
      return simulations[:-1],sets
 
@@ -136,8 +136,21 @@ def generateRecord(full_simulations,full_sets):
                return 2
           else:
                return 0
+
+     def edgeClassification(ep,h_0):
+          ##true homodimer
+          topology=edgeTopology(ep)
+          if topology==1:
+               return 'homodimeric'
+          ##true heterodimer
+          elif topology==0:
+               return 'heterodimeric'
+          ##unclear
+          else:
+               return 'heterodimeric' if h_0 else 'Du-Sp' 
           
      DATA=[]
+     terminal_states=[0,0]
      for sim, sets in zip(full_simulations,full_sets):
           trimmed_nodes=[]
           node_details=defaultdict(dict)
@@ -167,11 +180,24 @@ def generateRecord(full_simulations,full_sets):
                     for edge in sim[leaf][4:]:
                          edge_pair=tuple(sorted(e%4 for e in edge[:2]))
                          if (sim[leaf][2]-node_details[leaf][edge_pair][1])<0:
-                              print(i,edge,branch)
-                         DATA.append({'occurence':node_details[leaf][edge_pair][2],'generation':sim[leaf][2],'t_0':sim[leaf][2]-node_details[leaf][edge_pair][1],'homology':edge[2],'edge_pair': edgeTopology(edge[:2]),'h_0':node_details[leaf][edge_pair][0],'dup':(node_details[leaf][edge_pair][0]==0)+2*(node_details[leaf][edge_pair][0]==edge[2])})
-
+                              continue
+                         #return sim,sets#(edge,branch)
+                         DATA.append({'occurence':node_details[leaf][edge_pair][2],'generation':sim[leaf][2],'t_0':sim[leaf][2]-node_details[leaf][edge_pair][1],'homology':edge[2],'edge_pair': edgeTopology(edge[:2]),'h_0':node_details[leaf][edge_pair][0],'class': edgeClassification(edge[:2],node_details[leaf][edge_pair][0])})
+                         
+               else:
+                    for edge in sim[leaf][4:]:
+                         edge_pair=tuple(sorted(e%4 for e in edge[:2]))
+                         ##if is a terminal heterodimeric edge, was it initially a homodimeric one
+                         if edgeTopology(edge[:2])!=1:
+                              terminal_states[node_details[leaf][edge_pair][0]==0]+=1
+                         
                
-     return pd.DataFrame(DATA)
+     return pd.DataFrame(DATA),terminal_states
+
+def makeRecord(S_hat,mu,rate,dup=True):
+     sims,sets=readEvoRecord3(mu,S_hat,rate,dup)
+     cleanRecord(sims,sets)
+     return generateRecord(sims,sets)
      
 def readEvoRecord2(mu,S_c,rate,duplicate=True):
      lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/EvoRecords/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
@@ -289,8 +315,26 @@ def plotEvoRecord(df,key='occurence'):
      ax.set_xlabel(key,fontsize=24)
      plt.show(block=False)
 
-     #sns.swarmplot(x='occurence',y='homology',hue='dup',data=df3)
-     #ns.violinplot(x='occurence',y='homology',hue='dup',data=df3)
+     #sns.stripplot(x='occurence',y='homology',hue='class',data=dframe)
+     #sns.violinplot(x='occurence',y='homology',hue='class',data=dframe)
+     
+def plotTrends(dframes):
+     if not isinstance(dframes,list):
+          dframes=[dframes]
+     f,axes=plt.subplots(len(dframes))
+     if len(dframes)==1:
+          axes=[axes]
+          
+     for ax,dframe in zip(axes,dframes):
+          sns.pointplot(x="occurence", y="homology", hue="class",capsize=.2, palette="YlGnBu_d", data=dframe,ax=ax,esimator=np.mean,ci=95)
+          addRandomExpectations(ax,128)
+          
+     plt.show(block=False)
+     
+def addRandomExpectations(ax,L_I):
+     ax.axhline(L_I/2,c='#666666',ls='--',lw=2,zorder=0)
+     for sign in (-1,1):
+          ax.axhline(L_I/2+sign*np.sqrt(L_I)/2,c='#666666',ls='--',lw=.75,zorder=0)
 
 def getSuperSets(list_of_sets):
      super_sets=[]
@@ -486,10 +530,34 @@ def plotPhen(pids_raw,run,thresh=0.25):
      plt.legend()
      #plt.yscale('log',nonposy='mask')
      plt.show(block=False)
+     
+from scipy.stats import binom
+def getExpectedInteractionTime(L_I,S_c):
+     binomial=binom(L_I,.5)
+     thresh=math.floor(S_c*L_I)-1
+     return 1/binomial.sf(thresh)
+##baseline is .001 mutation
 
+import subprocess
+import sys
+def runnerCore(S_CRITICAL,DU_FLAG='J'):
+     runs={.671875:250,.6875:350,.703125:500, .71875:625, .734375:750,.75:1000}
+
+     default_args=' -N 1 -P 100 -B 100 -X .25 -F 1 -A 1 -V 0 -T 10 -Y {} -M .001 -D {} -G {}'.format(S_CRITICAL, runs[S_CRITICAL], runs[S_CRITICAL]*10)
+
+     dead_flag={'J':'K','K':'J'}
+
+     for G_RATE in (.0001,.001,.01):
+          special_args=' -L {} -{} {} -{} 0'.format(G_RATE*2, DU_FLAG, G_RATE, dead_flag[DU_FLAG])
+          subprocess.run('../bin/DuplicationEvolution -E'+default_args+special_args,shell=True)     
+     
+     
+def main():
+     if len(sys.argv)==2:
+          runnerCore(float(sys.argv[1]))
+     print('Done okay')
+     
 if __name__ == "__main__":
      main()
 
-def main():
-     args=sys.argv
-     compileEvoRecord()
+

@@ -317,6 +317,19 @@ def plotEvoRecord(df,key='occurence'):
 
      #sns.stripplot(x='occurence',y='homology',hue='class',data=dframe)
      #sns.violinplot(x='occurence',y='homology',hue='class',data=dframe)
+
+def plotPhaseSpace(bulk_data):
+     plt.figure()
+     tuples=[]
+     for (du_rate, S_c), (_,ratio) in bulk_data.items():
+          tuples.append((du_rate, S_c, ratio[1]/ratio[0]))
+          print(du_rate, S_c, ratio[1],ratio[0])
+     vals=np.array(tuples).T
+     #print(vals)
+     sc=plt.scatter(*vals[:2], c=vals[2],norm=LogNorm(),s=300)
+     plt.colorbar(sc)
+     plt.xscale('log')
+     plt.show(block=False)
      
 def plotTrends(dframes):
      if not isinstance(dframes,list):

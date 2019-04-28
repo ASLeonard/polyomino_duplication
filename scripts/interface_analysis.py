@@ -17,6 +17,9 @@ import warnings
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
+from scipy import stats
+import pandas as pd
+
 #GLOBAL PIDS
 null_pid,init_pid=np.array([0,0],dtype=np.uint8),np.array([1,0],dtype=np.uint8)
 
@@ -73,13 +76,7 @@ def plotHomologyEvolution(run,L,norm=True,annotate=False):
                     ax.scatter(details[0],edge[2],c=[cm.tab20((edge[0]%4*4+edge[1]%4)/16)],alpha=alph)
      plt.show(block=False)
 
-def readEvoRecord(run):
-     lines=[line.rstrip() for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Evo_Run{}.txt'.format(run))]
-     d={}
-     for l in lines:
-          parts=l.split()
-          d[tuple(int(i) for i in parts[:2])]=tuple(int(i) for i in parts[2:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)])
-     return d
+
 def readEvoRecord3(mu,S_c,rate,duplicate=True):#/rscratch/asl47/Duplication/EvoRecords/
      lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/EvoRecords/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
 
@@ -126,7 +123,10 @@ def cleanRecord(full_simulations,full_sets):
                     print(sim,single_set)
           clean_set=stripRedundancy(sets)
           full_sets[i]=[fset for fset in clean_set if len(fset)>1]
-          
+          if not full_sets[i]:
+               full_simulations[i]=None
+               full_sets[i]=None
+                        
 def generateRecord(full_simulations,full_sets):
 
      def edgeTopology(ep):
@@ -150,6 +150,7 @@ def generateRecord(full_simulations,full_sets):
                return 'heterodimeric' if h_0 else 'Du-Sp' 
           
      DATA=[]
+     #cnt=0
      terminal_states=[0,0]
      for sim, sets in zip(full_simulations,full_sets):
           trimmed_nodes=[]
@@ -181,15 +182,22 @@ def generateRecord(full_simulations,full_sets):
                          edge_pair=tuple(sorted(e%4 for e in edge[:2]))
                          if (sim[leaf][2]-node_details[leaf][edge_pair][1])<0:
                               continue
-                         #return sim,sets#(edge,branch)
+
                          DATA.append({'occurence':node_details[leaf][edge_pair][2],'generation':sim[leaf][2],'t_0':sim[leaf][2]-node_details[leaf][edge_pair][1],'homology':edge[2],'edge_pair': edgeTopology(edge[:2]),'h_0':node_details[leaf][edge_pair][0],'class': edgeClassification(edge[:2],node_details[leaf][edge_pair][0])})
                          
-               else:
-                    for edge in sim[leaf][4:]:
-                         edge_pair=tuple(sorted(e%4 for e in edge[:2]))
-                         ##if is a terminal heterodimeric edge, was it initially a homodimeric one
-                         if edgeTopology(edge[:2])!=1:
-                              terminal_states[node_details[leaf][edge_pair][0]==0]+=1
+          ##after all leafs recorded, take information on max phenotype
+          else:
+               #print(cnt)
+               #cnt+=1
+               leaf_index, edges = max(enumerate(sim), key=itemgetter(1))
+               for edge in edges[4:]:
+                    edge_pair=tuple(sorted(e%4 for e in edge[:2]))
+                    ##if is a terminal heterodimeric edge, was it initially a homodimeric one
+                    if edgeTopology(edge[:2])!=1:
+                         #print(node_details)
+                         #print(leaf_index,edge_pair)
+                         #print("s",sets,branch)
+                         terminal_states[node_details[leaf_index][edge_pair][0]==0]+=1
                          
                
      return pd.DataFrame(DATA),terminal_states
@@ -197,72 +205,9 @@ def generateRecord(full_simulations,full_sets):
 def makeRecord(S_hat,mu,rate,dup=True):
      sims,sets=readEvoRecord3(mu,S_hat,rate,dup)
      cleanRecord(sims,sets)
-     return generateRecord(sims,sets)
+     #return sims,sets
+     return generateRecord(filter(None,sims),filter(None,sets))
      
-def readEvoRecord2(mu,S_c,rate,duplicate=True):
-     lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/EvoRecords/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
-     d=[{}]
-     #print(lines)
-     prev_phen_size=(0,0)
-     for l in lines:
-          parts=l.split()
-          key=tuple(int(i) for i in parts[:2])
-          if key <= prev_phen_size:
-               d.append({})
-          d[-1][key]=tuple(int(i) for i in parts[2:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)])
-          
-          prev_phen_size=key
-               
-               
-     return [dict_run for dict_run in d if dict_run]
-
-from scipy import stats
-import pandas as pd
-def compileEvoRecord(runs):
-     
-     data=[]
-     cnt=-1
-     for simulation in runs:
-          cnt+=1
-          occurences=defaultdict(int)
-          initial_homologies={}
-          initial_edges={}
-          dp={v[0]:v[2:] for v in sorted(simulation.values())}
-          for gen,v in dp.items():
-               minimals=defaultdict(list)
-               for edge in v:
-                    edge_pair=tuple(sorted(e%4 for e in edge[:2]))
-                    minimals[edge_pair].append(edge[2])
-                    
-               for ep,homol in minimals.items():
-                    if ep not in initial_homologies:
-                         initial_homologies[ep]=min(homol)
-                    if ep not in initial_edges:
-                         initial_edges[ep]=gen
-               
-               for edge in v:
-                    edge_pair=tuple(sorted(e%4 for e in edge[:2]))
-                    if occurences[edge_pair] == 0 and edge[2] != initial_homologies[edge_pair]:
-                         if cnt in []:
-                              continue
-                         #break
-                    #if occurences[edge_pair]>6:
-                    #     print(simulation)
-                         #print(cnt)
-                         #break
-                         #print(edge_pair,occurences[edge_pair], edge[2], initial_homologies[edge_pair])
-                         #return simulation
-                         
-
-                    data.append({'occurence':occurences[edge_pair],'generation':gen,'t_0':gen-initial_edges[edge_pair],'homology':edge[2],'edge_pair':edge_pair[0]==edge_pair[1],'h_0':initial_homologies[edge_pair]})
-
-
-               for co in minimals.keys():
-                    occurences[co]+=1
-     return pd.DataFrame(data)
-
-def readCompiledEvoRecord(add_type='Dup', T='High'):
-     return pd.read_csv('/rscratch/asl47/EvoRecords/EvoRecord_{}_{}.pd'.format(add_type,T))
 
 def plotE2(df,norm=True):
      f,axes=plt.subplots(2,1)
@@ -291,8 +236,8 @@ def plotEvoRecord(df,key='occurence'):
      rand_data=defaultdict(list)
      for xv,h_0,hom in zip(df[key],df['h_0'],df['homology']):
           if h_0<=40:
-               #if xv!=0 and hom==0:
-               #     continue
+               if xv!=0 and hom==0:
+                    continue
                homol_data[xv].append(hom)
           else:
                rand_data[xv].append(hom)
@@ -319,17 +264,26 @@ def plotEvoRecord(df,key='occurence'):
      #sns.violinplot(x='occurence',y='homology',hue='class',data=dframe)
 
 def plotPhaseSpace(bulk_data):
-     plt.figure()
+     f,ax=plt.subplots()
      tuples=[]
      for (du_rate, S_c), (_,ratio) in bulk_data.items():
           tuples.append((du_rate, S_c, ratio[1]/ratio[0]))
-          print(du_rate, S_c, ratio[1],ratio[0])
+          print(du_rate, S_c, '({})'.format(ratio[1]/ratio[0]),ratio[1],ratio[0])
      vals=np.array(tuples).T
      #print(vals)
      sc=plt.scatter(*vals[:2], c=vals[2],norm=LogNorm(),s=300)
      plt.colorbar(sc)
      plt.xscale('log')
      plt.show(block=False)
+     return ax,vals
+
+def makeGrid(ax,vs):
+     xs=v[0].reshape(3,-1)
+     ys=v[1].reshape(3,-1)
+     cols=v[2].reshape(3,-1)
+     
+     CS=plt.contour(xs,ys,cols)
+     ax.clabel(CS, fontsize=9, inline=1)
      
 def plotTrends(dframes):
      if not isinstance(dframes,list):
@@ -574,3 +528,78 @@ if __name__ == "__main__":
      main()
 
 
+###########
+##DEFUNCT##
+###########
+
+def readEvoRecord2(mu,S_c,rate,duplicate=True):
+     lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/EvoRecords/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
+     d=[{}]
+     #print(lines)
+     prev_phen_size=(0,0)
+     for l in lines:
+          parts=l.split()
+          key=tuple(int(i) for i in parts[:2])
+          if key <= prev_phen_size:
+               d.append({})
+          d[-1][key]=tuple(int(i) for i in parts[2:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)])
+          
+          prev_phen_size=key
+               
+               
+     return [dict_run for dict_run in d if dict_run]
+
+
+def compileEvoRecord(runs):
+     
+     data=[]
+     cnt=-1
+     for simulation in runs:
+          cnt+=1
+          occurences=defaultdict(int)
+          initial_homologies={}
+          initial_edges={}
+          dp={v[0]:v[2:] for v in sorted(simulation.values())}
+          for gen,v in dp.items():
+               minimals=defaultdict(list)
+               for edge in v:
+                    edge_pair=tuple(sorted(e%4 for e in edge[:2]))
+                    minimals[edge_pair].append(edge[2])
+                    
+               for ep,homol in minimals.items():
+                    if ep not in initial_homologies:
+                         initial_homologies[ep]=min(homol)
+                    if ep not in initial_edges:
+                         initial_edges[ep]=gen
+               
+               for edge in v:
+                    edge_pair=tuple(sorted(e%4 for e in edge[:2]))
+                    if occurences[edge_pair] == 0 and edge[2] != initial_homologies[edge_pair]:
+                         if cnt in []:
+                              continue
+                         #break
+                    #if occurences[edge_pair]>6:
+                    #     print(simulation)
+                         #print(cnt)
+                         #break
+                         #print(edge_pair,occurences[edge_pair], edge[2], initial_homologies[edge_pair])
+                         #return simulation
+                         
+
+                    data.append({'occurence':occurences[edge_pair],'generation':gen,'t_0':gen-initial_edges[edge_pair],'homology':edge[2],'edge_pair':edge_pair[0]==edge_pair[1],'h_0':initial_homologies[edge_pair]})
+
+
+               for co in minimals.keys():
+                    occurences[co]+=1
+     return pd.DataFrame(data)
+
+def readCompiledEvoRecord(add_type='Dup', T='High'):
+     return pd.read_csv('/rscratch/asl47/EvoRecords/EvoRecord_{}_{}.pd'.format(add_type,T))
+
+def readEvoRecord(run):
+     lines=[line.rstrip() for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Evo_Run{}.txt'.format(run))]
+     d={}
+     for l in lines:
+          parts=l.split()
+          d[tuple(int(i) for i in parts[:2])]=tuple(int(i) for i in parts[2:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)])
+     return d

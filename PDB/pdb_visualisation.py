@@ -175,4 +175,36 @@ def plotLevy(df,plo='BSA'):
      print(np.median(data.loc[data['homol']==1]['BSA']),np.median(data.loc[data['homol']==0]['BSA']))
      print(stats.mannwhitneyu(data.loc[data['homol']==1]['BSA'],data.loc[data['homol']==0]['BSA'],alternative='greater'))
 
+##invert domain data, into a dictionary with architecture key and pdb values
+def invertDomains(domains):
+     inverted=defaultdict(list)
 
+     for k,v in domains.items():
+          if not v:
+               continue
+          elif len(set(tuple(dom) for dom in v.values())) > 1:
+               continue
+               
+          arch=tuple(list(v.values())[0])
+          inverted[arch].append(k)
+     return inverted        
+                    
+
+     
+def correspondingHomodimers():
+     het=scrubInput('PDB_Heterodimers',0,1,'CATH')
+     full_ids=[id_[:4] for id_ in het.loc[het['domain']=='full']['id']]
+
+     het_dom=readDomains('CATH')
+     het_dom={id_:het_dom[id_] for id_ in full_ids}
+
+
+     heteromeric_inv=invertDomains(het_dom)
+     hom_dom=readDomains('HCath')
+     homomeric_inv=invertDomains(hom_dom)
+
+     for arch,pdbs in heteromeric_inv.items():
+          if arch in homomeric_inv:
+               yield (pdbs,homomeric_inv[arch])
+     yield
+          

@@ -77,7 +77,7 @@ def plotHomologyEvolution(run,L,norm=True,annotate=False):
      plt.show(block=False)
 
 
-def readEvoRecord3(mu,S_c,rate,duplicate=True):#/rscratch/asl47/Duplication/EvoRecords/
+def readEvoRecord3(mu,S_c,rate,duplicate=True):
      lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/EvoRecords/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
 
 
@@ -197,7 +197,7 @@ def generateRecord(full_simulations,full_sets):
                          #print(node_details)
                          #print(leaf_index,edge_pair)
                          #print("s",sets,branch)
-                         terminal_states[node_details[leaf_index][edge_pair][0]==0]+=1
+                         terminal_states[node_details[leaf_index][edge_pair][0] == 0]+=1
                          
                
      return pd.DataFrame(DATA),terminal_states
@@ -205,9 +205,23 @@ def generateRecord(full_simulations,full_sets):
 def makeRecord(S_hat,mu,rate,dup=True):
      sims,sets=readEvoRecord3(mu,S_hat,rate,dup)
      cleanRecord(sims,sets)
-     #return sims,sets
-     return generateRecord(filter(None,sims),filter(None,sets))
      
+     return generateRecord(filter(None,sims),filter(None,sets)), calculateDiversity(filter(None,sims),filter(None,sets))
+
+def calculateDiversity(sims,sets):
+     diversity=[]
+     for sim, set_ in zip(sims,sets):
+          phen_discovery={}
+          for pathway in set_:
+               for step in pathway:
+                    pid=sim[step][:2]
+                    if pid in phen_discovery:
+                         phen_discovery[pid] = min(phen_discovery[pid], sim[step][2])
+                    elif not phen_discovery or pid[0] >= max(phen_discovery)[0]:
+                         phen_discovery[pid] = sim[step][2]
+                         
+          diversity.append(phen_discovery)
+     return diversity
 
 def plotE2(df,norm=True):
      f,axes=plt.subplots(2,1)
@@ -222,7 +236,7 @@ def plotE2(df,norm=True):
 
      for index,ax in enumerate(axes):
           px=ax.pcolormesh(pop_grid[index].T,cmap='RdGy',norm=mpc.LogNorm(vmin=pop_grid[index].min(), vmax=pop_grid[index].max()))
-          f.colorbar(px,ax=ax)#ax.colorbar(px)
+          f.colorbar(px,ax=ax)
      plt.show(block=False)
      
 def plotEvoRecord(df,key='occurence'):
@@ -313,11 +327,12 @@ def getSuperSets(list_of_sets):
                super_sets.append(sorted(list_of_sets[l1]))
      return super_sets
      
-def plotDiversity(data,max_g):
+def plotDiversity(data):
+     max_g=max(max(run.values()) for run in data)
      discovs=np.zeros((len(data),max_g,2),dtype=np.uint8)
      for r,simulation in enumerate(data):
           
-          hits=sorted([(v[2],v[0]) for v in simulation])
+          hits=sorted([(v,k[0]) for k,v in simulation.items()])
           count_val = 1
           try:
                size_val = hits[0][1]
@@ -327,24 +342,25 @@ def plotDiversity(data,max_g):
                discovs[r,start[0]:end[0]]=(count_val,size_val)
                count_val += 1
                size_val =  max(start[1],end[1])
-     #return discovs
-     #plt.figure()
+
+     f,axes = plt.subplots(2)
      def plotHatched(index):
           y=np.mean(discovs[...,index],axis=0)
           y_err=np.std(discovs[...,index],axis=0,ddof=1)
-          col=plt.plot(y,lw=2,label=id(data))[0].get_color()
+          col=axes[index].plot(y,lw=2,label=id(data))[0].get_color()
           y_low=np.maximum(y-y_err,0)
         
-          plt.plot(y_low,c=col,ls='--')
-          plt.plot(y+y_err,c=col,ls='--')
-          plt.fill_between(range(max_g), y_low, y+y_err,alpha=.5,hatch='////',facecolor = 'none',edgecolor=col)
+          axes[index].plot(y_low,c=col,ls='--')
+          axes[index].plot(y+y_err,c=col,ls='--')
+          axes[index].fill_between(range(max_g), y_low, y+y_err,alpha=.5,hatch='////',facecolor = 'none',edgecolor=col)
 
-     
+     rand_samples=np.random.choice(discovs.shape[0], 10, replace=False)
      for index,ls in zip(range(2),('-',':')):
           plotHatched(index)
-          #plt.fill_between(range(max_g), y-y_err, y+y_err,alpha=.2)
-          #plt.plot(,ls=ls)
-     plt.legend()
+          for sample in rand_samples:
+               axes[index].plot(discovs[sample,...,index],ls=ls,lw=.5)
+
+     #plt.legend()
      plt.show(block=False)
 
      

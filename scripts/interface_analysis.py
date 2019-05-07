@@ -27,10 +27,6 @@ null_pid,init_pid=np.array([0,0],dtype=np.uint8),np.array([1,0],dtype=np.uint8)
 from matplotlib.colors import ListedColormap, Normalize
 import matplotlib as mpl
 
-def homm(run,L):
-     return [[int(i) for i in line.split()] for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Yomology_Run{}.txt'.format(run))]
-def strr(run,L):
-     return [[L-int(i) for i in line.split()] for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Strengths_Run{}.txt'.format(run))]
 
 def readBinaryVectors(fname,run,L):
      return np.fromfile('/scratch/asl47/Data_Runs/Bulk_Data/{}_Run{}.txt'.format(fname,run),dtype=np.uint16).reshape(-1,L+1)
@@ -426,80 +422,3 @@ def main():
      
 if __name__ == "__main__":
      main()
-
-
-###########
-##DEFUNCT##
-###########
-
-def readEvoRecord2(mu,S_c,rate,duplicate=True):
-     lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/EvoRecords/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
-     d=[{}]
-     #print(lines)
-     prev_phen_size=(0,0)
-     for l in lines:
-          parts=l.split()
-          key=tuple(int(i) for i in parts[:2])
-          if key <= prev_phen_size:
-               d.append({})
-          d[-1][key]=tuple(int(i) for i in parts[2:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)])
-          
-          prev_phen_size=key
-               
-               
-     return [dict_run for dict_run in d if dict_run]
-
-
-def compileEvoRecord(runs):
-     
-     data=[]
-     cnt=-1
-     for simulation in runs:
-          cnt+=1
-          occurences=defaultdict(int)
-          initial_homologies={}
-          initial_edges={}
-          dp={v[0]:v[2:] for v in sorted(simulation.values())}
-          for gen,v in dp.items():
-               minimals=defaultdict(list)
-               for edge in v:
-                    edge_pair=tuple(sorted(e%4 for e in edge[:2]))
-                    minimals[edge_pair].append(edge[2])
-                    
-               for ep,homol in minimals.items():
-                    if ep not in initial_homologies:
-                         initial_homologies[ep]=min(homol)
-                    if ep not in initial_edges:
-                         initial_edges[ep]=gen
-               
-               for edge in v:
-                    edge_pair=tuple(sorted(e%4 for e in edge[:2]))
-                    if occurences[edge_pair] == 0 and edge[2] != initial_homologies[edge_pair]:
-                         if cnt in []:
-                              continue
-                         #break
-                    #if occurences[edge_pair]>6:
-                    #     print(simulation)
-                         #print(cnt)
-                         #break
-                         #print(edge_pair,occurences[edge_pair], edge[2], initial_homologies[edge_pair])
-                         #return simulation
-                         
-
-                    data.append({'occurence':occurences[edge_pair],'generation':gen,'t_0':gen-initial_edges[edge_pair],'homology':edge[2],'edge_pair':edge_pair[0]==edge_pair[1],'h_0':initial_homologies[edge_pair]})
-
-
-               for co in minimals.keys():
-                    occurences[co]+=1
-     return pd.DataFrame(data)
-
-def readCompiledEvoRecord(add_type='Dup', T='High'):
-     return pd.read_csv('/rscratch/asl47/EvoRecords/EvoRecord_{}_{}.pd'.format(add_type,T))
-
-def readEvoRecord(run):
-     lines=[line.rstrip() for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Evo_Run{}.txt'.format(run))]
-     d={}
-     for l in lines:
-          parts=l.split()
-          d[tuple(int(i) for i in parts[:2])]=tuple(int(i) for i in parts[2:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)])
-     return d

@@ -88,28 +88,49 @@ def readEvoRecord3(mu,S_c,rate,duplicate=True):
 
 def cleanRecord(full_simulations,full_sets):
 
-     def growthCondition(phenotypes,sequence):
+     ##REDUNDANT 
+     def growthCondition(phenotypes, sequence):
+          if not sequence:
+               return None
           if len(sequence) == 1:
-               return True
+               return sequence
           elif phenotypes[sequence[-1]][0]<=phenotypes[sequence[-2]][0]:
                del sequence[-1]
                growthCondition(phenotypes,sequence)
           else:
-               return True
+               return sequence
+
+     def timeCondition(phenotypes, sequence):
+          if not sequence or len(sequence) < 2:
+               return
+          new_sequence = sequence[:]
+
+          for i in range(len(sequence)-1):
+               if phenotypes[sequence[i]][2]==phenotypes[sequence[i+1]][2]:
+                    if phenotypes[sequence[i]][0]>=phenotypes[sequence[i+1]][0]:
+                         new_sequence[i+1]=new_sequence[i]
+                    else:
+                         new_sequence[i]=new_sequence[i+1]
+               elif phenotypes[sequence[i]][0]>phenotypes[sequence[i+1]][0]:
+                    new_sequence[i+1]=None
+                    
+               
+          return list(filter(None.__ne__,dict.fromkeys(new_sequence)))
+          
 
      def stripRedundancy(sequences):
+          
           #{item for sublist in sequences for item in sublist}
-          return tuple(set((tuple(seq) for seq in sequences)))
+          return tuple(set((tuple(seq) for seq in sequences if seq)))
      #def stripTrivials(sequences):
      #     return [i for i in a if len(i)>1]tuple(set((tuple(seq) for seq in sequences)))
 
      ##main loop
      for i, (sim,sets) in enumerate(zip(full_simulations,full_sets)):
-          for single_set in sets:
-               try:
-                    growthCondition(sim,single_set)
-               except:
-                    print(sim,single_set)
+          #sets=[growthCondition(sim,single_set) for single_set in sets]
+          sets=[timeCondition(sim,single_set) for single_set in sets]
+          
+        
           clean_set=stripRedundancy(sets)
           full_sets[i]=[fset for fset in clean_set if len(fset)>1]
           if not full_sets[i]:
@@ -169,13 +190,17 @@ def generateRecord(full_simulations,full_sets):
                     ##use supporting information to create data row for this transition
                     for edge in sim[leaf][4:]:
                          edge_pair=tuple(sorted(e%4 for e in edge[:2]))
+
+                         ##discovered in wrong order
                          if (sim[leaf][2]-node_details[leaf][edge_pair][1])<0:
+                              print("negative time of discovery")
                               continue
 
                          DATA.append({'occurence':node_details[leaf][edge_pair][2],'generation':sim[leaf][2],'t_0':sim[leaf][2]-node_details[leaf][edge_pair][1],'homology':edge[2],'edge_pair': edgeTopology(edge[:2]),'h_0':node_details[leaf][edge_pair][0],'class': edgeClassification(edge[:2],node_details[leaf][edge_pair][0])})
                          
           ##after all leafs recorded, take information on max phenotype
           else:
+               node_details=dict(node_details)
                #print(cnt)
                #cnt+=1
                leaf_index, edges = max(enumerate(sim), key=itemgetter(1))
@@ -183,18 +208,15 @@ def generateRecord(full_simulations,full_sets):
                     edge_pair=tuple(sorted(e%4 for e in edge[:2]))
                     ##if is a terminal heterodimeric edge, was it initially a homodimeric one
                     if edgeTopology(edge[:2])!=1:
-                         #print(node_details)
-                         #print(leaf_index,edge_pair)
-                         #print("s",sets,branch)
                          terminal_states[node_details[leaf_index][edge_pair][0] == 0]+=1
-                         
+                        
                
      return pd.DataFrame(DATA),terminal_states
 
 def makeRecord(S_hat,mu,rate,dup=True):
      sims,sets=readEvoRecord3(mu,S_hat,rate,dup)
      cleanRecord(sims,sets)
-     
+
      return generateRecord(filter(None,sims),filter(None,sets)), calculateDiversity(filter(None,sims),filter(None,sets))
 
 def calculateDiversity(sims,sets):
@@ -255,8 +277,6 @@ def plotEvoRecord(df,key='occurence'):
 
      if key == 't_0':
           plt.plot(64*(1-np.exp(-np.arange(max(df['t_0']))/2/(256))),ls='--',c='c')
-     #slope, intercept, r_value, p_value, std_err=stats.linregress(sorted(homol_data),[np.mean(homol_data[k]) for k in sorted(homol_data)])
-     #plt.plot(range(min(homol_data),max(homol_data)+1),[slope*x+intercept for x in range(min(homol_data),max(homol_data)+1)],'r--')
 
      print("ratio is {}/{}".format(len(df.loc[(df['occurence']==0) & (df['h_0']<=40)]),len(df.loc[(df['occurence']==0) & (df['h_0']>40)])))
      ax.set_ylabel('homology',fontsize=24)
@@ -350,6 +370,8 @@ def plotDiversity(data):
                axes[index].plot(discovs[sample,...,index],ls=ls,lw=.5)
 
      #plt.legend()
+     axes[0].set_ylabel('Num Phenotype')
+     axes[1].set_ylabel('Max size')
      plt.show(block=False)
 
      

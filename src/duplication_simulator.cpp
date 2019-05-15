@@ -222,8 +222,8 @@ void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::vector<std::tuple<Phen
   }
     
   //iterate through all currently tracked phenotypes
-  for(const auto& tracking_element : PG.PID_tracker) {
-    const auto [pid,pid_record] = tracking_element;
+  for(const auto& [pid, pid_record] : PG.PID_tracker) {
+   
     //this pid has survived long enough to be meaningful
     if(std::accumulate(pid_record.begin(),pid_record.end(),0)==PG.PID_depth) {
 

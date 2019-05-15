@@ -2,34 +2,13 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import glob
 import pandas as pd
+import json
+import requests
+from collections import defaultdict, Counter
+import numpy as np
+import scipy.stats as ss
+from itertools import product
 
-class Dimer(object):
-     __slots__ = ('id','homomer','homology','TM','BSA')
-     def __init__(self,pdb,mer,hom,tm,sasa):
-          self.id=str(pdb)
-          self.homomer=bool(mer)
-          self.homology=float(hom)
-          self.TM=float(tm)
-          self.BSA=float(sasa)
-          
-     def __repr__(self):
-          return '{}dimer: {}, with {:.2f}% homology and BSA of {}A2'.format('Homo' if self.homomer else 'Hetero', self.id, self.homology, self.BSA)
-
-def getDomains(path='Complex_Heterodimers'):
-     data=[line.rstrip().split() for line in open('/scratch/asl47/PDB/Inputs/{}.txt'.format(path))]
-     domain_dict={}
-     for l in data:
-          ds=l[-1].split(':')
-          if ds == ['?']:
-               domain_dict[l[0]]='?'
-               continue
-          
-          domain_dict[l[0]]={ds[i-1][-1]:ds[i][:(-1 if i<(len(ds)-1) else None)] for i in range(1,len(ds))}
-          continue
-          
-          
-
-     return domain_dict
 def domainMatch(data,c1,c2):
      if c1 not in data and c2 not in data:
           return 'NA'
@@ -42,32 +21,25 @@ def domainMatch(data,c1,c2):
      else:
           return 'none'
 
-import requests
-from collections import defaultdict
-def pullSCOP(pdb_id):
-     data=requests.get('http://www.ebi.ac.uk/pdbe/api/mappings/scop/{}'.format(pdb_id)).json()
-     domain_arch=defaultdict(list)
-     for superfam in data[pdb_id]['SCOP'].values():
-          scop_id=superfam['superfamily']['sunid']
-          for chain_element in superfam['mappings']:
-               domain_arch[chain_element['chain_id']].append(scop_id)
-     return dict(domain_arch)
+def pullDomains(pdb_id, style_key='CATH-B'):
+     assert style_key == 'SCOP' or style_key == 'CATH-B', 'Unknown style_key: {}'.format(style_key)
 
-def pullCATH(pdb_id):
-     data=requests.get('http://www.ebi.ac.uk/pdbe/api/mappings/cath_b/{}'.format(pdb_id)).json()
+     data=requests.get('http://www.ebi.ac.uk/pdbe/api/mappings/{}/{}'.format('scop' if style_key == 'SCOP' else 'cath_b', pdb_id)).json()
      domain_arch=defaultdict(list)
-     for cath_id, superfam in data[pdb_id]['CATH-B'].items():
+     
+     for class_id, superfam in data[pdb_id][style_key].items():
+          if style_key == 'SCOP':
+               class_id=superfam['superfamily']['sunid']
           for chain_element in superfam['mappings']:
-               domain_arch[chain_element['chain_id']].append(cath_id)
+               domain_arch[chain_element['chain_id']].append(class_id)
      return dict(domain_arch)
      
-import json
-def writeDomains(pdb_list,class_type='SCOP'):
-     domains={}
-     pullDomains=pullSCOP if class_type=='SCOP' else pullCATH
-     for pdb in pdb_list:
-          domains[pdb]=pullDomains(pdb)
 
+def writeDomains(pdb_list,class_type='SCOP'):
+     ##pull domain information from EBI for all PDBs
+     domains={pdb: pullDomains(pdb,class_type) for pdb in pdb_list}
+
+     ##write to json file
      with open('domain_architectures_{}.json'.format(class_type), 'w') as file_out:
           file_out.write(json.dumps(domains))
 
@@ -75,7 +47,7 @@ def readDomains(file_name='SCOP'):
      with open('domain_architectures_{}.json'.format(file_name)) as f:
           return json.load(f)
 
-from collections import Counter
+
 def getUniqueHomodimerDomains(top_X=None):
      if top_X is None:
           return {tuple(v) for vals in readDomains('HCath').values() for v in vals.values()}
@@ -85,17 +57,15 @@ def getUniqueHomodimerDomains(top_X=None):
           
      
      
-def scrubInput(path,local_alignment=True,similarity=True,domain='SCOP'):
-     df = pd.DataFrame(index=['Hom', 'Het'],columns=['Null', 'Dimer'])
+def scrubInput(run_name,local_alignment=True,similarity=True,domain='SCOP'):
+
      rows_list = []
-     BSAs_raw=[line.rstrip().split() for line in open('/scratch/asl47/PDB/Inputs/{}.txt'.format(path))]
+
      domain_dict=readDomains(domain)
-     homomer_domains=getUniqueHomodimerDomains(100)
-     BSAs={}
-     for bsa in BSAs_raw[1:]:
-          BSAs[bsa[0]]=(float(bsa[2])-float(bsa[1]))/2
+     #homomer_domains=getUniqueHomodimerDomains(100)
+
           
-     for result in glob.glob('/scratch/asl47/PDB/results/{}/*.results'.format(path)):
+     for result in glob.glob('/scratch/asl47/PDB/results/{}/*.results'.format(run_name)):
           d={'id':result.split('.')[0].split('/')[-1].lower()}
           raw=[line.rstrip() for line in open(result)]
           
@@ -105,10 +75,10 @@ def scrubInput(path,local_alignment=True,similarity=True,domain='SCOP'):
                if len(raw)==1:
                     print("Empty ID on {}".format(d['id']))
                     continue
+               d['chains'] = tuple(sorted(raw[1].split()))
                
                if any('#' in line for line in raw):
                     homologies=tuple(filter(lambda element: '#' in element,raw))
-                    slice_index=2+2*local_alignment+similarity
                     d['homology']=float(homologies[2*local_alignment+similarity].split()[-1][:-1]) 
                     d['H_pred']='yes' if d['homology']>=30 else 'no'
 
@@ -117,14 +87,18 @@ def scrubInput(path,local_alignment=True,similarity=True,domain='SCOP'):
                     d['BSA']=((float(bsa[2].split()[-1])+float(bsa[1].split()[-1]))-float(bsa[0].split()[-1]))/2
                     
                if d['id'][:4] in domain_dict:
-                    chains=raw[1].split()
-                    d['domain']=domainMatch(domain_dict[d['id'][:4]],*chains)
-                    if d['domain']=='full' or d['domain']=='partial':
-                         d['d_group']=any([tuple(domain_dict[d['id'][:4]][c]) in homomer_domains for c in chains])
+                    d['domain']=domainMatch(domain_dict[d['id'][:4]],*d['chains'])
+                    if d['domain']=='full':
+                         d['arch']=domain_dict[d['id'][:4]][d['chains'][0]]
+                    else:
+                         d['arch']=None
+                         #or d['domain']=='partial':
+
+                         #d['d_group']=any([tuple(domain_dict[d['id'][:4]][c]) in homomer_domains for c in d['chains']])
                     #elif 'Homodimer' in path:
                     #     d['d_group']=None
-                    else:
-                         d['d_group']='none'
+                    #else:
+                    #     d['d_group']='none'
                     
                          
                          
@@ -145,9 +119,7 @@ def scrubInput(path,local_alignment=True,similarity=True,domain='SCOP'):
           rows_list.append(d)
      return pd.DataFrame(rows_list)
           
-         # rows_list.append
-import numpy as np
-import scipy.stats as ss
+
 def plotData(data,stat_func=''):
      #g=sns.regplot(x="TM", y="BSA", data=data)
      
@@ -167,17 +139,24 @@ def plotData(data,stat_func=''):
 
      for val, dic in zip(('High','Low'),(high,low)):
           print("{}: ({})".format(val,len(dic))," = ", np.nanmedian(dic['BSA']))
-
      
      
      print("\np-value: {}\n".format(ss.mannwhitneyu(high['BSA'],low['BSA'],alternative='greater')[1]))
      for overlap in ('full','partial','none','NA'):
           print(overlap,"({})".format(len(data.loc[data['domain']==overlap])),np.nanmedian([float(i) for i in data.loc[data['domain']==overlap]['BSA']]))
 
-     domain_yes=x=data.loc[(data['domain']=='full') | (data['domain']=='partial')]
-     domain_no=x=data.loc[~(data['domain']=='full') & ~(data['domain']=='partial')]
+     domain_yes=data.loc[(data['domain']=='full') | (data['domain']=='partial')]
+     domain_no=data.loc[data['domain']=='none']
+     #data.loc[~(data['domain']=='full') & ~(data['domain']=='partial')]
      print("\np-value: {}".format(ss.mannwhitneyu(domain_yes['BSA'],domain_no['BSA'],alternative='greater')[1]))
+     print('\n CLES: ',commonLanguageES(domain_no['BSA'],domain_yes['BSA']))
      print(np.nanmedian(domain_yes['BSA']),np.nanmedian(domain_no['BSA']))
+
+##find fraction of pairs where the higher element is actually higher than the lower element
+def commonLanguageES(lows, highs):
+     assert len(lows) and len(highs), 'invalid arguments'
+
+     return sum(h>l for l,h in product(lows,highs))/(len(lows)*len(highs))
 
 
 def loadLevy():
@@ -200,3 +179,42 @@ def plotLevy(df,plo='BSA'):
      #return data
      print(np.median(data.loc[data['homol']==1]['BSA']),np.median(data.loc[data['homol']==0]['BSA']))
      print(stats.mannwhitneyu(data.loc[data['homol']==1]['BSA'],data.loc[data['homol']==0]['BSA'],alternative='greater'))
+
+##invert domain data, into a dictionary with architecture key and pdb values
+def invertDomains(domains,ids=None):
+     inverted=defaultdict(list)
+
+     for k,v in domains.items():
+          if not v:
+               continue
+          elif k not in ids:
+               continue
+          elif ids and len(set(tuple(v[chain]) for chain in ids[k])):
+               continue          
+               
+          arch=tuple(list(v.values())[0])
+          inverted[arch].append(k)
+     return inverted        
+                    
+
+     
+def correspondingHomodimers(heteromerics, homomerics):
+
+     domain_groupings={}
+     for idx,data in enumerate((heteromerics,homomerics)):
+          for _,row in data.iterrows():
+               if row['arch'] is None:
+                    continue
+               domain=' '.join(row['arch'])
+               if domain not in domain_groupings:
+                    domain_groupings[domain]=([],[])
+               else:
+                    domain_groupings[domain][idx].append('{}_{}_{}'.format(row['id'][:4],*row['chains']))
+
+     non_trivial={domains: pdb_pairs for domains,pdb_pairs in domain_groupings.items() if all(pdb_pairs)}
+     with open('domain_groups.json', 'w') as file_:
+          file_.write(json.dumps(non_trivial))
+                
+     return non_trivial
+
+          

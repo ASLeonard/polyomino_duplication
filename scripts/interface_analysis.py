@@ -17,24 +17,16 @@ import warnings
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
+from scipy import stats
+import pandas as pd
+
 #GLOBAL PIDS
 null_pid,init_pid=np.array([0,0],dtype=np.uint8),np.array([1,0],dtype=np.uint8)
 
-def plotBs(a):
-     plt.figure()
-     c=['r','b','g']
-     for i in a:
-          for g,j in enumerate(i.T):
-               plt.plot(range(1000),j,c[g])
-     plt.show(block=False)
 
 from matplotlib.colors import ListedColormap, Normalize
 import matplotlib as mpl
 
-def homm(run,L):
-     return [[int(i) for i in line.split()] for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Yomology_Run{}.txt'.format(run))]
-def strr(run,L):
-     return [[L-int(i) for i in line.split()] for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Strengths_Run{}.txt'.format(run))]
 
 def readBinaryVectors(fname,run,L):
      return np.fromfile('/scratch/asl47/Data_Runs/Bulk_Data/{}_Run{}.txt'.format(fname,run),dtype=np.uint16).reshape(-1,L+1)
@@ -73,14 +65,8 @@ def plotHomologyEvolution(run,L,norm=True,annotate=False):
                     ax.scatter(details[0],edge[2],c=[cm.tab20((edge[0]%4*4+edge[1]%4)/16)],alpha=alph)
      plt.show(block=False)
 
-def readEvoRecord(run):
-     lines=[line.rstrip() for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Evo_Run{}.txt'.format(run))]
-     d={}
-     for l in lines:
-          parts=l.split()
-          d[tuple(int(i) for i in parts[:2])]=tuple(int(i) for i in parts[2:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)])
-     return d
-def readEvoRecord3(mu,S_c,rate,duplicate=True):#/rscratch/asl47/Duplication/EvoRecords/
+
+def readEvoRecord3(mu,S_c,rate,duplicate=True):
      lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/EvoRecords/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
 
 
@@ -102,31 +88,55 @@ def readEvoRecord3(mu,S_c,rate,duplicate=True):#/rscratch/asl47/Duplication/EvoR
 
 def cleanRecord(full_simulations,full_sets):
 
-     def growthCondition(phenotypes,sequence):
+     ##REDUNDANT 
+     def growthCondition(phenotypes, sequence):
+          if not sequence:
+               return None
           if len(sequence) == 1:
-               return True
+               return sequence
           elif phenotypes[sequence[-1]][0]<=phenotypes[sequence[-2]][0]:
                del sequence[-1]
                growthCondition(phenotypes,sequence)
           else:
-               return True
+               return sequence
+
+     def timeCondition(phenotypes, sequence):
+          if not sequence or len(sequence) < 2:
+               return
+          new_sequence = sequence[:]
+
+          for i in range(len(sequence)-1):
+               if phenotypes[sequence[i]][2]==phenotypes[sequence[i+1]][2]:
+                    if phenotypes[sequence[i]][0]>=phenotypes[sequence[i+1]][0]:
+                         new_sequence[i+1]=new_sequence[i]
+                    else:
+                         new_sequence[i]=new_sequence[i+1]
+               elif phenotypes[sequence[i]][0]>phenotypes[sequence[i+1]][0]:
+                    new_sequence[i+1]=None
+                    
+               
+          return list(filter(None.__ne__,dict.fromkeys(new_sequence)))
+          
 
      def stripRedundancy(sequences):
+          
           #{item for sublist in sequences for item in sublist}
-          return tuple(set((tuple(seq) for seq in sequences)))
+          return tuple(set((tuple(seq) for seq in sequences if seq)))
      #def stripTrivials(sequences):
      #     return [i for i in a if len(i)>1]tuple(set((tuple(seq) for seq in sequences)))
 
      ##main loop
      for i, (sim,sets) in enumerate(zip(full_simulations,full_sets)):
-          for single_set in sets:
-               try:
-                    growthCondition(sim,single_set)
-               except:
-                    print(sim,single_set)
+          #sets=[growthCondition(sim,single_set) for single_set in sets]
+          sets=[timeCondition(sim,single_set) for single_set in sets]
+          
+        
           clean_set=stripRedundancy(sets)
           full_sets[i]=[fset for fset in clean_set if len(fset)>1]
-          
+          if not full_sets[i]:
+               full_simulations[i]=None
+               full_sets[i]=None
+                        
 def generateRecord(full_simulations,full_sets):
 
      def edgeTopology(ep):
@@ -150,6 +160,7 @@ def generateRecord(full_simulations,full_sets):
                return 'heterodimeric' if h_0 else 'Du-Sp' 
           
      DATA=[]
+     #cnt=0
      terminal_states=[0,0]
      for sim, sets in zip(full_simulations,full_sets):
           trimmed_nodes=[]
@@ -179,90 +190,49 @@ def generateRecord(full_simulations,full_sets):
                     ##use supporting information to create data row for this transition
                     for edge in sim[leaf][4:]:
                          edge_pair=tuple(sorted(e%4 for e in edge[:2]))
+
+                         ##discovered in wrong order
                          if (sim[leaf][2]-node_details[leaf][edge_pair][1])<0:
+                              print("negative time of discovery")
                               continue
-                         #return sim,sets#(edge,branch)
+
                          DATA.append({'occurence':node_details[leaf][edge_pair][2],'generation':sim[leaf][2],'t_0':sim[leaf][2]-node_details[leaf][edge_pair][1],'homology':edge[2],'edge_pair': edgeTopology(edge[:2]),'h_0':node_details[leaf][edge_pair][0],'class': edgeClassification(edge[:2],node_details[leaf][edge_pair][0])})
                          
-               else:
-                    for edge in sim[leaf][4:]:
-                         edge_pair=tuple(sorted(e%4 for e in edge[:2]))
-                         ##if is a terminal heterodimeric edge, was it initially a homodimeric one
-                         if edgeTopology(edge[:2])!=1:
-                              terminal_states[node_details[leaf][edge_pair][0]==0]+=1
-                         
+          ##after all leafs recorded, take information on max phenotype
+          else:
+               node_details=dict(node_details)
+               #print(cnt)
+               #cnt+=1
+               leaf_index, edges = max(enumerate(sim), key=itemgetter(1))
+               for edge in edges[4:]:
+                    edge_pair=tuple(sorted(e%4 for e in edge[:2]))
+                    ##if is a terminal heterodimeric edge, was it initially a homodimeric one
+                    if edgeTopology(edge[:2])!=1:
+                         terminal_states[node_details[leaf_index][edge_pair][0] == 0]+=1
+                        
                
      return pd.DataFrame(DATA),terminal_states
 
 def makeRecord(S_hat,mu,rate,dup=True):
      sims,sets=readEvoRecord3(mu,S_hat,rate,dup)
      cleanRecord(sims,sets)
-     return generateRecord(sims,sets)
-     
-def readEvoRecord2(mu,S_c,rate,duplicate=True):
-     lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/EvoRecords/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
-     d=[{}]
-     #print(lines)
-     prev_phen_size=(0,0)
-     for l in lines:
-          parts=l.split()
-          key=tuple(int(i) for i in parts[:2])
-          if key <= prev_phen_size:
-               d.append({})
-          d[-1][key]=tuple(int(i) for i in parts[2:4])+tuple([tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)])
-          
-          prev_phen_size=key
-               
-               
-     return [dict_run for dict_run in d if dict_run]
 
-from scipy import stats
-import pandas as pd
-def compileEvoRecord(runs):
-     
-     data=[]
-     cnt=-1
-     for simulation in runs:
-          cnt+=1
-          occurences=defaultdict(int)
-          initial_homologies={}
-          initial_edges={}
-          dp={v[0]:v[2:] for v in sorted(simulation.values())}
-          for gen,v in dp.items():
-               minimals=defaultdict(list)
-               for edge in v:
-                    edge_pair=tuple(sorted(e%4 for e in edge[:2]))
-                    minimals[edge_pair].append(edge[2])
-                    
-               for ep,homol in minimals.items():
-                    if ep not in initial_homologies:
-                         initial_homologies[ep]=min(homol)
-                    if ep not in initial_edges:
-                         initial_edges[ep]=gen
-               
-               for edge in v:
-                    edge_pair=tuple(sorted(e%4 for e in edge[:2]))
-                    if occurences[edge_pair] == 0 and edge[2] != initial_homologies[edge_pair]:
-                         if cnt in []:
-                              continue
-                         #break
-                    #if occurences[edge_pair]>6:
-                    #     print(simulation)
-                         #print(cnt)
-                         #break
-                         #print(edge_pair,occurences[edge_pair], edge[2], initial_homologies[edge_pair])
-                         #return simulation
+     return generateRecord(filter(None,sims),filter(None,sets)), calculateDiversity(filter(None,sims),filter(None,sets))
+
+def calculateDiversity(sims,sets):
+     diversity=[]
+     for sim, set_ in zip(sims,sets):
+          phen_discovery={}
+          for pathway in set_:
+               for step in pathway:
+                    pid=sim[step][:2]
+                    if pid in phen_discovery:
+                         phen_discovery[pid] = min(phen_discovery[pid], sim[step][2])
+                    elif not phen_discovery or pid[0] >= max(phen_discovery)[0]:
+                         phen_discovery[pid] = sim[step][2]
                          
-
-                    data.append({'occurence':occurences[edge_pair],'generation':gen,'t_0':gen-initial_edges[edge_pair],'homology':edge[2],'edge_pair':edge_pair[0]==edge_pair[1],'h_0':initial_homologies[edge_pair]})
-
-
-               for co in minimals.keys():
-                    occurences[co]+=1
-     return pd.DataFrame(data)
-
-def readCompiledEvoRecord(add_type='Dup', T='High'):
-     return pd.read_csv('/rscratch/asl47/EvoRecords/EvoRecord_{}_{}.pd'.format(add_type,T))
+          diversity.append(phen_discovery)
+     return diversity
 
 def plotE2(df,norm=True):
      f,axes=plt.subplots(2,1)
@@ -277,7 +247,7 @@ def plotE2(df,norm=True):
 
      for index,ax in enumerate(axes):
           px=ax.pcolormesh(pop_grid[index].T,cmap='RdGy',norm=mpc.LogNorm(vmin=pop_grid[index].min(), vmax=pop_grid[index].max()))
-          f.colorbar(px,ax=ax)#ax.colorbar(px)
+          f.colorbar(px,ax=ax)
      plt.show(block=False)
      
 def plotEvoRecord(df,key='occurence'):
@@ -291,8 +261,8 @@ def plotEvoRecord(df,key='occurence'):
      rand_data=defaultdict(list)
      for xv,h_0,hom in zip(df[key],df['h_0'],df['homology']):
           if h_0<=40:
-               #if xv!=0 and hom==0:
-               #     continue
+               if xv!=0 and hom==0:
+                    continue
                homol_data[xv].append(hom)
           else:
                rand_data[xv].append(hom)
@@ -307,8 +277,6 @@ def plotEvoRecord(df,key='occurence'):
 
      if key == 't_0':
           plt.plot(64*(1-np.exp(-np.arange(max(df['t_0']))/2/(256))),ls='--',c='c')
-     #slope, intercept, r_value, p_value, std_err=stats.linregress(sorted(homol_data),[np.mean(homol_data[k]) for k in sorted(homol_data)])
-     #plt.plot(range(min(homol_data),max(homol_data)+1),[slope*x+intercept for x in range(min(homol_data),max(homol_data)+1)],'r--')
 
      print("ratio is {}/{}".format(len(df.loc[(df['occurence']==0) & (df['h_0']<=40)]),len(df.loc[(df['occurence']==0) & (df['h_0']>40)])))
      ax.set_ylabel('homology',fontsize=24)
@@ -319,17 +287,26 @@ def plotEvoRecord(df,key='occurence'):
      #sns.violinplot(x='occurence',y='homology',hue='class',data=dframe)
 
 def plotPhaseSpace(bulk_data):
-     plt.figure()
+     f,ax=plt.subplots()
      tuples=[]
      for (du_rate, S_c), (_,ratio) in bulk_data.items():
           tuples.append((du_rate, S_c, ratio[1]/ratio[0]))
-          print(du_rate, S_c, ratio[1],ratio[0])
+          print(du_rate, S_c, '({})'.format(ratio[1]/ratio[0]),ratio[1],ratio[0])
      vals=np.array(tuples).T
      #print(vals)
      sc=plt.scatter(*vals[:2], c=vals[2],norm=LogNorm(),s=300)
      plt.colorbar(sc)
      plt.xscale('log')
      plt.show(block=False)
+     return ax,vals
+
+def makeGrid(ax,vs):
+     xs=v[0].reshape(3,-1)
+     ys=v[1].reshape(3,-1)
+     cols=v[2].reshape(3,-1)
+     
+     CS=plt.contour(xs,ys,cols)
+     ax.clabel(CS, fontsize=9, inline=1)
      
 def plotTrends(dframes):
      if not isinstance(dframes,list):
@@ -359,11 +336,12 @@ def getSuperSets(list_of_sets):
                super_sets.append(sorted(list_of_sets[l1]))
      return super_sets
      
-def plotDiversity(data,max_g):
+def plotDiversity(data):
+     max_g=max(max(run.values()) for run in data)
      discovs=np.zeros((len(data),max_g,2),dtype=np.uint8)
      for r,simulation in enumerate(data):
           
-          hits=sorted([(v[2],v[0]) for v in simulation])
+          hits=sorted([(v,k[0]) for k,v in simulation.items()])
           count_val = 1
           try:
                size_val = hits[0][1]
@@ -373,24 +351,27 @@ def plotDiversity(data,max_g):
                discovs[r,start[0]:end[0]]=(count_val,size_val)
                count_val += 1
                size_val =  max(start[1],end[1])
-     #return discovs
-     #plt.figure()
+
+     f,axes = plt.subplots(2)
      def plotHatched(index):
           y=np.mean(discovs[...,index],axis=0)
           y_err=np.std(discovs[...,index],axis=0,ddof=1)
-          col=plt.plot(y,lw=2,label=id(data))[0].get_color()
+          col=axes[index].plot(y,lw=2,label=id(data))[0].get_color()
           y_low=np.maximum(y-y_err,0)
         
-          plt.plot(y_low,c=col,ls='--')
-          plt.plot(y+y_err,c=col,ls='--')
-          plt.fill_between(range(max_g), y_low, y+y_err,alpha=.5,hatch='////',facecolor = 'none',edgecolor=col)
+          axes[index].plot(y_low,c=col,ls='--')
+          axes[index].plot(y+y_err,c=col,ls='--')
+          axes[index].fill_between(range(max_g), y_low, y+y_err,alpha=.5,hatch='////',facecolor = 'none',edgecolor=col)
 
-     
+     rand_samples=np.random.choice(discovs.shape[0], 10, replace=False)
      for index,ls in zip(range(2),('-',':')):
           plotHatched(index)
-          #plt.fill_between(range(max_g), y-y_err, y+y_err,alpha=.2)
-          #plt.plot(,ls=ls)
-     plt.legend()
+          for sample in rand_samples:
+               axes[index].plot(discovs[sample,...,index],ls=ls,lw=.5)
+
+     #plt.legend()
+     axes[0].set_ylabel('Num Phenotype')
+     axes[1].set_ylabel('Max size')
      plt.show(block=False)
 
      
@@ -428,121 +409,12 @@ def Bint(run,g,c):
 def Hom(run,g,c):
      return [line.rstrip() for line in open('/scratch/asl47/Data_Runs/Bulk_Data/Homology_Run{}.txt'.format(run))][g].split(',')[c]
 
-def plotPhen2(pids_raw):
-     pids=ObjArray([[tuple(i) for i in row] for row in pids_raw])
-     ref_pids=list(np.unique(pids))
-
-     dets=[pid for pid in ref_pids if (0,0) not in pid]
-     non_dets=[pid for pid in ref_pids if (0,0) in pid]
-
-     if ((255,0),) in dets:
-          non_dets.append(dets.pop(dets.index(((255,0),))))
-         
-     cmap_base = cm.get_cmap('tab20b',len(dets))
-     cmap_base2 = cm.get_cmap('tab20c',20)
-     cmap_rare=[]
-
-     counter=0
-     for rare in non_dets:
-          raw_rare=tuple(sub_pid for sub_pid in rare if sub_pid!=(0,0))
-          if raw_rare in dets:
-               index = dets.index(raw_rare)
-               cmap_rare.append(cmap_base.colors[index].copy())
-               cmap_rare[-1][3]=.25
-          elif len(raw_rare)==0:
-               cmap_rare.append((1,1,1,1))
-          elif raw_rare==((255,0),):
-               cmap_rare.append((0,0,0,1))
-          else:
-               cmap_rare.append(cmap_base2.colors[counter%20].copy())
-               cmap_rare[-1][3]=.25
-               counter+=1
 
 
-     cmap_full = ListedColormap(np.vstack((cmap_base.colors,cmap_rare)))
-     #print(cmap_full.colors)
-     c={K:i for i,K in enumerate(dets+non_dets)}
-     #print(c)
-     
-     pop_grid=np.empty(pids.shape).T
-     for i,j in np.ndindex(pids.shape):
-          pop_grid[j,i]=c[pids[i,j]]
-          
-     #len(ref_pids))
 
-     
-     f,ax=plt.subplots()
-     #img = plt.imshow(np.array([list(range(len(dets)))]), cmap=cmap_base)
-     #img.set_visible(False)
-
-     #cbar=plt.colorbar(drawedges=True)#orientation="vertical")
-
-     px=plt.pcolormesh(pop_grid,cmap=cmap_full)
-     
-     sm=cm.ScalarMappable(cmap=cmap_base)
-     sm.set_array(np.linspace(0,1,len(dets)))
-     
-     cbar=plt.colorbar(sm,drawedges=True)
-     #tick_locs = (np.arange(len(ref_pids)) + 0.5)*(len(ref_pids)-1)/len(ref_pids)
-     tick_locs = (np.arange(len(dets)) + 0.5)/len(dets)
-     cbar.set_ticks(tick_locs)
-
-     #cbar.ax.set_yticklabels(dets+non_dets, fontsize=14, weight='bold')
-     cbar.ax.set_yticklabels(dets, fontsize=14, weight='bold')
-     plt.show(block=False)
-     return ax
-
-from matplotlib import collections  as mc
-def add_selection_layer(ax,selections,run,colorize='M'):
-     lines=[[(-.5,i+.5,),(.5,i+.5)] for i in range(selections.shape[1])]
-     for g_ind, p_ind in np.ndindex(selections.shape):
-          if g_ind==(selections.shape[0]-1):
-               continue
-          lines.append([(g_ind+.5,selections[g_ind,p_ind]+.5),(g_ind+1.5,p_ind+.5)])
-     #mutations=np.loadtxt('/scratch/asl47/Data_Runs/Bulk_Data/Mutation_Run{}.txt'.format(run),dtype=np.uint8)[:selections.shape[0]-1,:].reshape(-1)
-     #homologies=np.genfromtxt('/scratch/asl47/Data_Runs/Bulk_Data/Homology_Run1.txt',dtype=np.float64,delimiter=",")
-
-     sizes=np.loadtxt('/scratch/asl47/Data_Runs/Bulk_Data/Size_Run{}.txt'.format(run),dtype=np.uint8).reshape(-1)
-
-     
-
-     cols=np.array(['k','darkgreen','darkred','blue','gainsboro'])
-     lws=np.array([0.5,1,1,1])
-     lc = mc.LineCollection(lines, linewidths=1,linestyle='-',cmap='inferno')
-     
-     if colorize=='M':
-          lc.set_array(mutations)
-     elif colorize=='H':
-          lc.set_array(homologies)
-     elif colorize=='S':
-          lc.set_array(sizes)     
-     
-     plt.colorbar(lc)
-     ax.add_collection(lc)
 
          
-from itertools import chain     
-def plotPhen(pids_raw,run,thresh=0.25):
-     pids=pids_raw
 
-     unique_pids=[(0,0),(1,0),(255,0)]+list(LoadPhenotypeTable(run).keys())
-     gens,pop_size=pids_raw.shape
-
-     gen_counts={K:[0]*gens for K in unique_pids}
-     for i,row in enumerate(pids):
-          for pid in chain.from_iterable(row.flat):
-               gen_counts[pid][i]+=1
-
-     
-     plt.figure()
-     
-     for k,v in gen_counts.items():
-          if max(v)<pop_size*thresh:
-               continue
-          plt.plot(range(gens),v,label=k,ls='-' if k!=(0,0) else ':',c=None if k!=(0,0) else 'k')
-     plt.legend()
-     #plt.yscale('log',nonposy='mask')
-     plt.show(block=False)
      
 from scipy.stats import binom
 def getExpectedInteractionTime(L_I,S_c):
@@ -572,5 +444,3 @@ def main():
      
 if __name__ == "__main__":
      main()
-
-

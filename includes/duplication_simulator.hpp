@@ -24,8 +24,8 @@ struct PopulationGenotype {
   std::set<Phenotype_ID> PID_lineage;
   std::vector<size_t> PID_hierarchy;
 
-  PopulationGenotype() : active_space(simulation_params::n_tiles*4) {RandomiseGenotype(active_space); neutral_space=active_space;};
-  
+  PopulationGenotype() : active_space(4), neutral_space(simulation_params::n_tiles*4) {RandomiseGenotype(active_space); RandomiseGenotype(neutral_space);};
+
 };
 
 

@@ -257,7 +257,7 @@ void EvolvePopulation(std::string run_details) {
   std::ofstream fout_evo(shared_base_path+"EvoRecord_Mu"+std::to_string(InterfaceAssembly::mutation_rate)+"_S"+std::to_string(InterfaceAssembly::binding_threshold)+(InterfaceAssembly::duplication_rate > InterfaceAssembly::insertion_rate ? "_D" + std::to_string(InterfaceAssembly::duplication_rate) : "_I" + std::to_string(InterfaceAssembly::insertion_rate))+".txt",std::ios::app );
   
   std::string fname_phenotype(file_base_path+"PhenotypeTable"+file_simulation_details);
-  
+
   std::ofstream fout_selection_history, fout_phenotype_IDs, fout_size, fout_interactions2, fout_strength, fout_zomology;
 
   const bool FULL_WRITE=false;
@@ -281,7 +281,6 @@ void EvolvePopulation(std::string run_details) {
   std::vector<double> population_fitnesses(simulation_params::population_size);
   std::vector<PopulationGenotype> evolving_population(simulation_params::population_size),reproduced_population;
   reproduced_population.resize(simulation_params::population_size);
-
   std::vector<uint16_t> binary_homologies(interface_size+1), binary_strengths(interface_size+1);
   
   

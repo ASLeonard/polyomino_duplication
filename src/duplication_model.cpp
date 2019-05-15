@@ -19,6 +19,8 @@ size_t InterfaceAssembly::Mutation(Genotype& genotype, bool duplication=false, b
     holder+=2;
     GenotypeDeletion(genotype);
   }
+  if(genotype.empty())
+    return 0;
   if(duplication && std::bernoulli_distribution(duplication_rate)(RNG_Engine)) {
     holder+=1;
     GenotypeDuplication(genotype);
@@ -113,6 +115,19 @@ void SplitActiveNeutralSpaces(Genotype& active, Genotype& neutral) {
   Genotype stripped=full;
   neutral=InterfaceAssembly::StripNoncodingGenotype(stripped);
   active=stripped;
+  //add spare space
+  while(neutral.size() < simulation_params::n_tiles*4) {
+  const size_t n_edges = InterfaceAssembly::GetActiveInterfaces(active).size();
+  Genotype spare(4);
+  do {
+    RandomiseGenotype(spare);
+    full.insert(full.end(),spare.begin(),spare.end());
+
+  } while(InterfaceAssembly::GetActiveInterfaces(full).size() != n_edges);
+  neutral.insert(neutral.end(),spare.begin(),spare.end());
+
+
+  }
 }
 
 
@@ -136,17 +151,18 @@ namespace interface_model
     if(binary_genome.empty())
       return {{UNBOUND_pid,1}};
       
-    InterfaceAssembly::StripNoncodingGenotype(binary_genome);
+    //InterfaceAssembly::StripNoncodingGenotype(binary_genome);
     //Genotype genotype = binary_genome;
     //Genotype genotype = StripMonomers(binary_genome);
-    Genotype genotype = StripMonomers(binary_genome);
+    //Genotype genotype = StripMonomers(binary_genome);
     
-    binary_genome=genotype;
-    if(genotype.empty())
-      return {{Phenotype_ID{1,0},1}};
-
+    Genotype genotype = binary_genome;
     const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(genotype);
 
+    if(edges.empty())
+      return {{Phenotype_ID{1,0},1}};
+
+    
 
     Phenotype phen;
     std::vector<Phenotype_ID> Phenotype_IDs;

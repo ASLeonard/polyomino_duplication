@@ -130,7 +130,7 @@ void EvolveHomology(std::string run_details,bool self) {
     g[4]=interface_model::ReverseBits(~g[0]);
 
   for(auto& ep : evolving_population)
-    ep.genotype=Genotype(g);
+    ep.active_space=Genotype(g);
 
   std::uniform_int_distribution<uint8_t> dis(0, interface_size-1);
   std::uniform_int_distribution<uint8_t> dis2(0, 7);
@@ -142,12 +142,12 @@ void EvolveHomology(std::string run_details,bool self) {
     
     uint16_t nth_genotype=0;
     for(PopulationGenotype& evolving_genotype : evolving_population) { /*! GENOTYPE LOOP */
-      auto hom = CalculateHomology(evolving_genotype.genotype);
+      auto hom = CalculateHomology(evolving_genotype.active_space);
       res.insert(res.end(),hom.begin(),hom.end());
            
-      evolving_genotype.genotype[dis2(RNG_Engine)].flip(dis(RNG_Engine));
+      evolving_genotype.active_space[dis2(RNG_Engine)].flip(dis(RNG_Engine));
       population_fitnesses[nth_genotype]=0;
-      const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(evolving_genotype.genotype);
+      const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(evolving_genotype.active_space);
       for(auto edge : edges) {
         if(edge.first==InteractionPair{0,4})
           population_fitnesses[nth_genotype]=1;
@@ -200,8 +200,8 @@ void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::vector<std::tuple<Phen
     if(PG.PID_details.find(pid)==PG.PID_details.end()) {
       PhenotypeEdgeInformation edge_info;
       for(auto edge : PG.pid_interactions[pid]) {
-        const auto hom = (PG.subunits[edge.first.first] ^ PG.subunits[edge.first.second]).count();
-        const auto str = interface_model::SammingDistance(PG.subunits[edge.first.first], PG.subunits[edge.first.second]);
+        const auto hom = (PG.active_space[edge.first.first] ^ PG.active_space[edge.first.second]).count();
+        const auto str = interface_model::SammingDistance(PG.active_space[edge.first.first], PG.active_space[edge.first.second]);
         edge_info.emplace_back(edge.first,hom,str,1);//edge.second/weighting);
       }
 
@@ -311,23 +311,25 @@ void EvolvePopulation(std::string run_details) {
     uint16_t nth_genotype=0;
     for(PopulationGenotype& evolving_genotype : evolving_population) { /*! GENOTYPE LOOP */
       
-      if(evolving_genotype.genotype.empty()) {
+      if(evolving_genotype.active_space.empty()) {
         std::cout<<"NULL GENOTYPE AT START OF GENERATION\ngen "<<generation<<" nth "<<nth_genotype<<"\n";
         return;
       }
-      if(evolving_genotype.genotype.size()>256) {
+      if(evolving_genotype.active_space.size()>100) {
         std::cout<<"TOO LONG GENOTYPE\ngen "<<generation<<" nth "<<nth_genotype<<"\n";
         return;
       }
       
-      InterfaceAssembly::Mutation(evolving_genotype.genotype,1,1,1);
+      InterfaceAssembly::Mutation(evolving_genotype.active_space,1,1,1);
             
-      evolving_genotype.subunits=evolving_genotype.genotype;
+      //evolving_genotype.subunits=evolving_genotype.genotype;
 
       evolving_genotype.pid_interactions.clear();
-      auto pid_map=interface_model::PolyominoAssemblyOutcome(evolving_genotype.subunits,&pt,evolving_genotype.pid_interactions);
+
+      SplitActiveNeutralSpaces(evolving_genotype.active_space,evolving_genotype.neutral_space);
+      auto pid_map=interface_model::PolyominoAssemblyOutcome(evolving_genotype.active_space,&pt,evolving_genotype.pid_interactions);
       
-      const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(evolving_genotype.subunits);
+      
       
       
       //evolving_genotype.subunits=assembly_genotype;
@@ -359,8 +361,8 @@ void EvolvePopulation(std::string run_details) {
       for(const auto& pid_kv : evolving_genotype.pid_interactions) {
         for(const auto& ints_kv : pid_kv.second) {
           auto IP = ints_kv.first;
-          binary_homologies[(evolving_genotype.subunits[IP.first]^evolving_genotype.subunits[IP.second]).count()]+=ints_kv.second;
-          binary_strengths[interface_size-interface_model::SammingDistance(evolving_genotype.subunits[IP.first],evolving_genotype.subunits[IP.second])]+=ints_kv.second;
+          binary_homologies[(evolving_genotype.active_space[IP.first]^evolving_genotype.active_space[IP.second]).count()]+=ints_kv.second;
+          binary_strengths[interface_size-interface_model::SammingDistance(evolving_genotype.active_space[IP.first],evolving_genotype.active_space[IP.second])]+=ints_kv.second;
         }
       }
            
@@ -369,12 +371,12 @@ void EvolvePopulation(std::string run_details) {
       if(FULL_WRITE) {
         for(auto& kv : pid_map) 
           fout_phenotype_IDs<<+kv.first.first<<" "<<+kv.first.second<<" ";
-        for(auto edge : edges)
+        for(auto edge : InterfaceAssembly::GetActiveInterfaces(evolving_genotype.active_space))
           fout_interactions2<<+edge.first.first<<" "<<+edge.first.second<<" ";
         fout_interactions2<<",";
       
         fout_phenotype_IDs<<",";
-        fout_size<<evolving_genotype.subunits.size()/4<<" ";
+        fout_size<<evolving_genotype.active_space.size()/4<<" ";
       }
       
     } /*! END GENOTYPE LOOP */

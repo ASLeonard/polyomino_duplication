@@ -62,6 +62,7 @@ namespace interface_model
 
 void EvolutionRunner();
 void RandomiseGenotype(Genotype& genotype);
+void SplitActiveNeutralSpaces(Genotype& active, Genotype& neutral);
 void EvolvePopulation(std::string run_details);
 
 

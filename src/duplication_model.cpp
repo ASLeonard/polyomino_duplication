@@ -15,6 +15,10 @@ void InterfaceAssembly::PrintBindingStrengths() {
 
 size_t InterfaceAssembly::Mutation(Genotype& genotype, bool duplication=false, bool insertion=false, bool deletion=false) {
   size_t holder=0;
+  if(deletion && std::bernoulli_distribution(deletion_rate)(RNG_Engine)) {
+    holder+=2;
+    GenotypeDeletion(genotype);
+  }
   if(duplication && std::bernoulli_distribution(duplication_rate)(RNG_Engine)) {
     holder+=1;
     GenotypeDuplication(genotype);
@@ -22,10 +26,6 @@ size_t InterfaceAssembly::Mutation(Genotype& genotype, bool duplication=false, b
   if(insertion && std::bernoulli_distribution(insertion_rate)(RNG_Engine)) {
     holder+=1;
     GenotypeInsertion(genotype);
-  }
-  if(deletion && std::bernoulli_distribution(deletion_rate)(RNG_Engine)) {
-    holder+=2;
-    GenotypeDeletion(genotype);
   }
 
   for(interface_type& base : genotype)
@@ -106,6 +106,15 @@ Genotype StripMonomers2(const Genotype genotype) {
       fresh.insert(fresh.end(),genotype.begin()+nth*4,genotype.begin()+nth*4+4);
   return fresh;
 }
+
+void SplitActiveNeutralSpaces(Genotype& active, Genotype& neutral) {
+  Genotype full = active;
+  full.insert(full.end(), neutral.begin(), neutral.end());
+  Genotype stripped=full;
+  neutral=InterfaceAssembly::StripNoncodingGenotype(stripped);
+  active=stripped;
+}
+
 
 namespace interface_model
 {

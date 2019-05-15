@@ -14,7 +14,7 @@ using PhenotypeEdgeInformation = std::vector<std::tuple<InteractionPair, uint8_t
 
 struct PopulationGenotype {
   static constexpr size_t PID_depth=20;
-  Genotype genotype, subunits;
+  Genotype active_space, neutral_space;
   //std::vector<Phenotype_ID> pids;
 
   std::map<Phenotype_ID, std::map<InteractionPair,uint16_t> > pid_interactions;
@@ -24,7 +24,7 @@ struct PopulationGenotype {
   std::set<Phenotype_ID> PID_lineage;
   std::vector<size_t> PID_hierarchy;
 
-  PopulationGenotype() : genotype(simulation_params::n_tiles*4) {RandomiseGenotype(genotype); subunits=genotype;};
+  PopulationGenotype() : active_space(simulation_params::n_tiles*4) {RandomiseGenotype(active_space); neutral_space=active_space;};
   
 };
 
@@ -41,6 +41,7 @@ void EvolutionRunner();
 void EvolveHomology(std::string run_details,bool self);
 
 void EvolvingHomology();
+
 
 
 void SetRuntimeConfigurations(int argc, char* argv[]);

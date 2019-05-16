@@ -116,18 +116,20 @@ void SplitActiveNeutralSpaces(Genotype& active, Genotype& neutral) {
   neutral=InterfaceAssembly::StripNoncodingGenotype(stripped);
   active=stripped;
   //add spare space
-  while(neutral.size() < simulation_params::n_tiles*4) {
-  const size_t n_edges = InterfaceAssembly::GetActiveInterfaces(active).size();
-  Genotype spare(4);
-  do {
-    RandomiseGenotype(spare);
-    full.insert(full.end(),spare.begin(),spare.end());
-
-  } while(InterfaceAssembly::GetActiveInterfaces(full).size() != n_edges);
-  neutral.insert(neutral.end(),spare.begin(),spare.end());
-
-
+  if(neutral.size() < simulation_params::n_tiles*4) {
+    const size_t n_edges = InterfaceAssembly::GetActiveInterfaces(active).size();
+    Genotype spare(simulation_params::n_tiles*4-neutral.size());
+    
+    while(true) {
+      Genotype temp = full;
+      RandomiseGenotype(spare);
+      temp.insert(temp.end(),spare.begin(),spare.end());
+    if(InterfaceAssembly::GetActiveInterfaces(temp).size() == n_edges)
+      break;
+}
+    neutral.insert(neutral.end(),spare.begin(),spare.end());
   }
+
 }
 
 

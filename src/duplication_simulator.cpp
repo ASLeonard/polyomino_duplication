@@ -172,7 +172,6 @@ void EvolveHomology(std::string run_details,bool self) {
 
 void EvolutionRunner() {
   /*!PYTHON INFORMATION*/
-
   Phenotype::DETERMINISM_LEVEL=1;
   KILL_BACK_MUTATIONS=true;
 
@@ -302,8 +301,7 @@ void EvolvePopulation(std::string run_details) {
   //Genotype assembly_genotype;
   //std::vector<uint8_t> pIDs(simulation_params::population_size*2);
   //Phenotype_ID prev_ev;
- 
-  
+
   for(uint32_t generation=0;generation<simulation_params::generation_limit;++generation) { /*! MAIN EVOLUTION LOOP */
 
 
@@ -423,7 +421,7 @@ void EvolvePopulation(std::string run_details) {
   fout_evo << "\n\n";
 
   }
-  
+
   //pt.PrintTable(fname_phenotype);
   
 }

@@ -104,7 +104,7 @@ Genotype StripMonomers2(const Genotype genotype) {
 
   Genotype fresh;
   for(size_t nth = 0; nth < oligomers.size(); ++nth)
-    if(oligomers[nth])
+    if(!oligomers[nth])
       fresh.insert(fresh.end(),genotype.begin()+nth*4,genotype.begin()+nth*4+4);
   return fresh;
 }
@@ -112,14 +112,19 @@ Genotype StripMonomers2(const Genotype genotype) {
 void SplitActiveNeutralSpaces(Genotype& active, Genotype& neutral) {
   Genotype full = active;
   full.insert(full.end(), neutral.begin(), neutral.end());
-  Genotype stripped=full;
-  neutral=InterfaceAssembly::StripNoncodingGenotype(stripped);
-  active=stripped;
+  //Genotype stripped=full;
+  neutral = StripMonomers2(InterfaceAssembly::StripNoncodingGenotype(full));
+  //neutral = StripMonomers2(neutral);
+  active=full;
+  full.insert(full.end(),neutral.begin(),neutral.end());
   //add spare space
+  //while(neutral.size() < simulation_params::n_tiles*4)
+  //  GenotypeInsertion(neutral);
   if(neutral.size() < simulation_params::n_tiles*4) {
     const size_t n_edges = InterfaceAssembly::GetActiveInterfaces(active).size();
     Genotype spare(simulation_params::n_tiles*4-neutral.size());
-    
+    if(n_edges != InterfaceAssembly::GetActiveInterfaces(full).size())
+      std::exit(1);
     while(true) {
       Genotype temp = full;
       RandomiseGenotype(spare);
@@ -128,6 +133,9 @@ void SplitActiveNeutralSpaces(Genotype& active, Genotype& neutral) {
       break;
 }
     neutral.insert(neutral.end(),spare.begin(),spare.end());
+  }
+  while(neutral.size() > simulation_params::n_tiles*4) {
+    neutral.erase(neutral.begin(),neutral.begin()+4);
   }
 
 }

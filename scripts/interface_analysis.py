@@ -428,12 +428,12 @@ import sys
 def runnerCore(S_CRITICAL,DU_FLAG='J'):
      runs={.671875:250,.6875:350,.703125:500, .71875:625, .734375:750,.75:1000}
 
-     default_args=' -N 1 -P 100 -B 100 -X .25 -F 1 -A 1 -V 0 -T 10 -Y {} -M .001 -D {} -G {}'.format(S_CRITICAL, runs[S_CRITICAL], runs[S_CRITICAL]*10)
+     default_args=' -N 10 -P 100 -B 100 -X .25 -F 1 -A 1 -V 0 -T 10 -Y {} -M .001 -D {} -G {}'.format(S_CRITICAL, runs[S_CRITICAL], runs[S_CRITICAL]*10)
 
      dead_flag={'J':'K','K':'J'}
 
      for G_RATE in (.0001,.001,.01):
-          special_args=' -L {} -{} {} -{} 0'.format(G_RATE*2, DU_FLAG, G_RATE, dead_flag[DU_FLAG])
+          special_args=' -L {} -{} {} -{} 0'.format(G_RATE, DU_FLAG, G_RATE, dead_flag[DU_FLAG])
           subprocess.run('../bin/DuplicationEvolution -E'+default_args+special_args,shell=True)     
      
      

@@ -5,6 +5,7 @@ import sys
 
 
 def runnerCore(S_CRITICAL,DU_FLAG='J'):
+    print('Running simulation at S: {}'.format(S_CRITICAL))
     generations={.671875:1500,.6875:2500,.703125:4000, .71875:9000, .734375:17500,.75:25000}
 
     default_args=' -N 3 -P 100 -B 50 -X .25 -F 1 -A 1 -V 0 -T 10 -Y {} -M .0015 -D 250 -G {}'.format(S_CRITICAL, generations[S_CRITICAL])

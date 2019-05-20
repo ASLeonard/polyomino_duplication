@@ -253,7 +253,7 @@ void EvolvePopulation(std::string run_details) {
     
   //
 
-  std::ofstream fout_evo(shared_base_path+"EvoRecord_Mu"+std::to_string(InterfaceAssembly::mutation_rate)+"_S"+std::to_string(InterfaceAssembly::binding_threshold)+(InterfaceAssembly::duplication_rate > InterfaceAssembly::insertion_rate ? "_D" + std::to_string(InterfaceAssembly::duplication_rate) : "_I" + std::to_string(InterfaceAssembly::insertion_rate))+".txt",std::ios::app );
+  std::ofstream fout_evo(shared_base_path+"EvoRecord_Mu"+std::to_string(InterfaceAssembly::mutation_rate)+"_S"+std::to_string(InterfaceAssembly::binding_threshold)+"_D" + std::to_string(InterfaceAssembly::duplication_rate)+".txt",std::ios::app );
   
   std::string fname_phenotype(file_base_path+"PhenotypeTable"+file_simulation_details);
 

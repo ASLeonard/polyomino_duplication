@@ -1,3 +1,8 @@
+import sys
+#add local paths to load custom methods
+if not any(('scripts' in pth for pth in sys.path)):
+     sys.path.append('scripts/')
+     
 from interface_methods import *
 import numpy as np
 
@@ -67,7 +72,7 @@ def plotHomologyEvolution(run,L,norm=True,annotate=False):
 
 
 def readEvoRecord3(mu,S_c,rate,duplicate=True):
-     lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/EvoRecords/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
+     lines=[line.rstrip() for line in open('scripts/Data/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
 
 
      simulations=[[]]
@@ -215,9 +220,10 @@ def generateRecord(full_simulations,full_sets):
 
 def makeRecord(S_hat,mu,rate,dup=True):
      sims,sets=readEvoRecord3(mu,S_hat,rate,dup)
+     diversity = calculateDiversity(sims,sets)
      cleanRecord(sims,sets)
 
-     return generateRecord(filter(None,sims),filter(None,sets)), calculateDiversity(filter(None,sims),filter(None,sets))
+     return generateRecord(filter(None,sims),filter(None,sets)), diversity
 
 def calculateDiversity(sims,sets):
      diversity=[]
@@ -289,7 +295,8 @@ def plotEvoRecord(df,key='occurence'):
 def plotPhaseSpace(bulk_data):
      f,ax=plt.subplots()
      tuples=[]
-     for (du_rate, S_c), (_,ratio) in bulk_data.items():
+     for  S_c, (_,ratio) in bulk_data.items():
+          du_rate=1
           tuples.append((du_rate, S_c, ratio[1]/ratio[0]))
           print(du_rate, S_c, '({})'.format(ratio[1]/ratio[0]),ratio[1],ratio[0])
      vals=np.array(tuples).T
@@ -336,7 +343,7 @@ def getSuperSets(list_of_sets):
                super_sets.append(sorted(list_of_sets[l1]))
      return super_sets
      
-def plotDiversity(data):
+def plotDiversity(data,S,lsx='-'):
      max_g=max(max(run.values()) for run in data)
      discovs=np.zeros((len(data),max_g,2),dtype=np.uint8)
      for r,simulation in enumerate(data):
@@ -352,24 +359,24 @@ def plotDiversity(data):
                count_val += 1
                size_val =  max(start[1],end[1])
 
-     f,axes = plt.subplots(2)
+     #f,axes = plt.subplots(2)
      def plotHatched(index):
           y=np.mean(discovs[...,index],axis=0)
           y_err=np.std(discovs[...,index],axis=0,ddof=1)
-          col=axes[index].plot(y,lw=2,label=id(data))[0].get_color()
+          col=axes[index].plot(np.arange(max_g)/getExpectedInteractionTime(64,S),y,lw=2,label=S,ls=lsx)[0].get_color()
           y_low=np.maximum(y-y_err,0)
         
-          axes[index].plot(y_low,c=col,ls='--')
-          axes[index].plot(y+y_err,c=col,ls='--')
-          axes[index].fill_between(range(max_g), y_low, y+y_err,alpha=.5,hatch='////',facecolor = 'none',edgecolor=col)
+          #axes[index].plot(y_low,c=col,ls='--')
+          #axes[index].plot(y+y_err,c=col,ls='--')
+          #axes[index].fill_between(np.arange(max_g), y_low, y+y_err,alpha=.5,hatch='////',facecolor = 'none',edgecolor=col)
 
      rand_samples=np.random.choice(discovs.shape[0], 10, replace=False)
      for index,ls in zip(range(2),('-',':')):
           plotHatched(index)
-          for sample in rand_samples:
-               axes[index].plot(discovs[sample,...,index],ls=ls,lw=.5)
+          #for sample in rand_samples:
+          #     axes[index].plot(discovs[sample,...,index],ls=ls,lw=.5)
 
-     #plt.legend()
+     plt.legend()
      axes[0].set_ylabel('Num Phenotype')
      axes[1].set_ylabel('Max size')
      plt.show(block=False)

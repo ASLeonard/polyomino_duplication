@@ -7,7 +7,9 @@ bin/*
 #
 Ignore any pyc from imports
 scripts/__pycache__
+PDB/__pycache__
 scripts/*.pyc
+PDB/*.pyc
 scripts/*.so
 scripts/*.sh
 

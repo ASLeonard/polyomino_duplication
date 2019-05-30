@@ -11,8 +11,8 @@ from sys import argv
 from pickle import load,dump
 from multiprocessing import Pool
 from functools import partial
-from collections import defaultdict,Counter
-from itertools import combinations,product,groupby
+from collections import defaultdict, Counter
+from itertools import combinations, product, groupby
 from operator import itemgetter
 import math
 import glob
@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
 from scipy import stats
+
 import pandas as pd
 
 #GLOBAL PIDS
@@ -225,6 +226,16 @@ def makeRecord(S_hat,mu,rate,dup=True):
 
      return generateRecord(filter(None,sims),filter(None,sets)), diversity
 
+
+def loadManyRecords(strengths,rates,mu):
+     evo_records = {}
+     evo_ratios = {}
+     evo_diversities = {}
+     for (S_hat, rate) in product(strengths, rates):
+          ((evo_records[(S_hat, rate)], evo_ratios[(S_hat, rate)]), evo_diversities[(S_hat, rate)]) = makeRecord(S_hat, mu, rate)
+
+     return evo_records, evo_ratios, evo_diversities
+
 def calculateDiversity(sims,sets):
      diversity=[]
      for sim, set_ in zip(sims,sets):
@@ -295,17 +306,17 @@ def plotEvoRecord(df,key='occurence'):
 def plotPhaseSpace(bulk_data):
      f,ax=plt.subplots()
      tuples=[]
-     for  S_c, (_,ratio) in bulk_data.items():
-          du_rate=1
+     for  (S_c,du_rate), ratio in bulk_data.items():
+          #du_rate=1
           tuples.append((du_rate, S_c, ratio[1]/ratio[0]))
           print(du_rate, S_c, '({})'.format(ratio[1]/ratio[0]),ratio[1],ratio[0])
      vals=np.array(tuples).T
      #print(vals)
      sc=plt.scatter(*vals[:2], c=vals[2],norm=LogNorm(),s=300)
      plt.colorbar(sc)
-     plt.xscale('log')
+     #plt.xscale('log')
      plt.show(block=False)
-     return ax,vals
+     #return ax,vals
 
 def makeGrid(ax,vs):
      xs=v[0].reshape(3,-1)
@@ -316,7 +327,9 @@ def makeGrid(ax,vs):
      ax.clabel(CS, fontsize=9, inline=1)
      
 def plotTrends(dframes):
-     if not isinstance(dframes,list):
+     if isinstance(dframes,dict):
+          dframes=list(dframes.values())
+     elif not isinstance(dframes,list):
           dframes=[dframes]
      f,axes=plt.subplots(len(dframes))
      if len(dframes)==1:
@@ -342,44 +355,65 @@ def getSuperSets(list_of_sets):
           else:
                super_sets.append(sorted(list_of_sets[l1]))
      return super_sets
+
+
+def plotDiversity(data_dict):
+     f,axes = plt.subplots(2)
+     slopes=[]
+     for (S_hat, rate), diversity in data_dict.items():
+         slopes.append(plotSingleDiversity(axes, diversity, S_hat,rate))
+
+     df = pd.DataFrame(slopes)
+     sns.scatterplot(data=df, x='S',y='slope',hue='rate',ax=axes[0])
+     axes[0].axhline(0,ls='--',c='darkgray')
+     plt.legend()
+     axes[0].set_ylabel('Num Phenotype')
+     axes[1].set_ylabel('Max size')
+     plt.show(block=False)
      
-def plotDiversity(data,S,lsx='-'):
+def plotSingleDiversity(axes,data,S,rate):
+
+     rate_lines = {0:':',.0015:'-.',0.015:'-'}
+     colours = {K/128:V for (K,V) in zip(range(86,98,2),cm.get_cmap('viridis')(np.linspace(0,1,6)))}
      max_g=max(max(run.values()) for run in data)
      discovs=np.zeros((len(data),max_g,2),dtype=np.uint8)
      for r,simulation in enumerate(data):
           
           hits=sorted([(v,k[0]) for k,v in simulation.items()])
           count_val = 1
-          try:
-               size_val = hits[0][1]
-          except:
-               print(hits,r)
+          size_val = hits[0][1]
           for start,end in zip(hits,hits[1:]+[(max_g,-1)]):
                discovs[r,start[0]:end[0]]=(count_val,size_val)
                count_val += 1
                size_val =  max(start[1],end[1])
 
      #f,axes = plt.subplots(2)
+     slope_points = []
      def plotHatched(index):
+          rescaled_X = np.arange(max_g)/getExpectedInteractionTime(64,S)
+          
           y=np.mean(discovs[...,index],axis=0)
           y_err=np.std(discovs[...,index],axis=0,ddof=1)
-          col=axes[index].plot(np.arange(max_g)/getExpectedInteractionTime(64,S),y,lw=2,label=S,ls=lsx)[0].get_color()
+          col=axes[index].plot(rescaled_X,y,lw=2,label=S,ls=rate_lines[rate],color=colours[S])[0].get_color()
           y_low=np.maximum(y-y_err,0)
+          slope_points.append({'S':S,'rate':rate,'slope': stats.linregress(rescaled_X[3*y.size//4:], y[3*y.size//4:])[0]})
+          #print('{}, {} -> slope: {:.3f}'.format(S,rate, stats.linregress(rescaled_X, y)[0]))
         
           #axes[index].plot(y_low,c=col,ls='--')
           #axes[index].plot(y+y_err,c=col,ls='--')
           #axes[index].fill_between(np.arange(max_g), y_low, y+y_err,alpha=.5,hatch='////',facecolor = 'none',edgecolor=col)
 
-     rand_samples=np.random.choice(discovs.shape[0], 10, replace=False)
+     #rand_samples=np.random.choice(discovs.shape[0], 10, replace=False)
      for index,ls in zip(range(2),('-',':')):
+          if index == 0:
+               continue
           plotHatched(index)
           #for sample in rand_samples:
           #     axes[index].plot(discovs[sample,...,index],ls=ls,lw=.5)
 
-     plt.legend()
-     axes[0].set_ylabel('Num Phenotype')
-     axes[1].set_ylabel('Max size')
-     plt.show(block=False)
+     
+     return slope_points[0]
+     
 
      
           

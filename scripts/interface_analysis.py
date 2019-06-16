@@ -236,6 +236,15 @@ def loadManyRecords(strengths,rates,mu):
 
      return evo_records, evo_ratios, evo_diversities
 
+def mergeDataFrames(data_frames):
+     new_frames=[df.assign(S_c=S_c,du_rate=du_rate) for (S_c, du_rate), df in data_frames.items()]
+
+     df = pd.concat(new_frames)
+     for (S_c, du_rate) in data_frames.items():
+          if 'Du-Sp' not in df.loc[(df['S_c']==S_c) & (df['du_rate']==du_rate)]['class']:
+               df=df.append({'class':'Du-Sp','edge_pair':0,'generation':0,'h_0':-100,'homology':-100,'occurence':0,'t_0':0,'S_c':S_c,'du_rate':du_rate},ignore_index=True)
+               
+
 def calculateDiversity(sims,sets):
      diversity=[]
      for sim, set_ in zip(sims,sets):
@@ -339,6 +348,14 @@ def plotTrends(dframes):
           sns.pointplot(x="occurence", y="homology", hue="class",capsize=.2, palette="YlGnBu_d", data=dframe,ax=ax,esimator=np.mean,ci=95)
           addRandomExpectations(ax,128)
           
+     plt.show(block=False)
+
+def plotTrendsOther(df):
+
+     g = sns.catplot(x='occurence',y='homology',hue='class',data=v2,row='S_c',col='du_rate',kind='point')
+     g.set(ylim=(0, None))
+     for ax in g.axes.ravel():
+          addRandomExpectations(ax,128)
      plt.show(block=False)
      
 def addRandomExpectations(ax,L_I):

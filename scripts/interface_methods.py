@@ -44,8 +44,37 @@ def LEH(Y,runs,pop):
 def loadData(S,fname='Discovs'):
      return [[int(i) for i in line.split()] for line in open('/rscratch/asl47/Discs/{}{:.6f}.BIN'.format(fname,S))]
 
-def loadBinary(S,fname='Discovs',shape=(-1)):
-     return np.fromfile('/rscratch/asl47/Duplication/Metrics/{}_{:.6f}.BIN'.format(fname,S),dtype=np.uint32).reshape(shape)
+def loadBinary(S,fname='Discovery',shape=(-1)):
+     return np.fromfile('{}_{:.6f}.BIN'.format(fname,S),dtype=np.uint32).reshape(shape)
+
+import glob
+def plotDi():
+     plt.figure()
+     for L in (30,40,50,60,80,120):
+          raws = []
+          Ss=[]
+          for file_ in sorted(glob.glob(f'scripts/L{L}/*')):
+               S=float(file_[file_.find('_')+1:file_.rfind('.')])
+               #print(S)
+               Ss.append(S)
+               data = np.fromfile(file_,dtype=np.uint32).reshape((2,-1)).astype(np.float64)
+               data[data==0]=np.nan
+               if any(i for i in data[0] if not np.isnan(i))==0:
+                    print(L,S)
+               raws.append(list(np.nanmean(data,axis=1))+[getExp(L,S),getExp(L//2,S)]+[scaler(L,S),scaler(L/2,S)])
+               #print(raws[-1])
+          raws= np.array(raws)
+          #print(Ss)
+          p=plt.plot(Ss,raws[:,0],ls='',marker='^')[0]
+          plt.plot(Ss,raws[:,1],ls='',marker='o',c=p.get_color())
+          plt.plot(Ss,raws[:,2],c=p.get_color(),label=L)
+          plt.plot(Ss,raws[:,3],c=p.get_color(),ls='--')
+          plt.plot(Ss,raws[:,4],c=p.get_color(),ls='',marker='h',ms=20,mec='k')
+          plt.plot(Ss,raws[:,5],c=p.get_color(),ls='',marker='s',ms=20,mec='c')
+
+     plt.yscale('log')
+     plt.legend()
+     plt.show(block=False)
 
 def plotDecors(low,high):
      #plt.figure()
@@ -299,7 +328,12 @@ def ObjArray(data):
      shape=(len(data),len(data[0]))
      nparr=np.empty(shape,dtype=object)
      nparr[:]=data
-     return nparr 
+     return nparr
+
+def walk_matrix(N,L):
+     rows = []
+     for i in range(N):
+          rows.append([])
 
 """ DRIFT SECTION """
 
@@ -312,13 +346,101 @@ def __matrix(I_size,S_star):
      rows.append([0]*(N_states-1)+[val[-1],0])
      matrix= np.vstack(rows).T
      return matrix
+
+
+def formation_matrix(I_size,S_star,drop=0):
+     cut = ceil(round(S_star*I_size,2))+1+drop
+     m = __matrix(I_size,0)[1:cut+1,1:cut+1]
+     m[-2][-1] = 0
+     return m
+
+def drop_matrix(I_size,S_star):
+     fm = formation_matrix(I_size,1-S_star,1)
+     #print(fm)
+     P_m = np.fliplr(np.eye(fm.shape[0]))
+     #print(P_m)
+     return P_m.dot(fm).dot(P_m)
+
+def getExp(I_size,S_star):
+     bb = binom(I_size,.5).pmf(range(ceil(round(I_size*S_star,2))))
+     #print('S is',ceil(round(I_size*S_star,2)))
+     fm = formation_matrix(I_size,S_star)
+     return np.inner(bb,expected_steps_fundamental(fm.T)[:-1]-1)+1
+
+def scaler(L,S):
+     return np.exp((.7/np.sqrt(L)+.08)*L**(1.35*S))
+
+def plotExp(I_size,ax=None):
+     if not ax:
+          f,ax = plt.subplots()
+     xs = np.linspace(0,1,I_size+1)
+     xs = xs[xs>.5]
+     xs = xs[xs<.8]
+     ys = [getExp(I_size,x) for x in xs]
+     #print(xs)
+     #print(ys)
+
      
+     def fit_func(S,a):
+          return a*I_size**(1.35*S)
+
+     def fit_func3(S,a,b,c):
+          return (a*I_size**(b*I_size**(c*S)))
+
+     def fit_func2(S,a):
+          return (a*I_size**(I_size**(S)))
+     fit_funcx=fit_func
+     
+     params,_ =  scipy.optimize.curve_fit(fit_funcx,  xs,  np.log(ys), maxfev=20000)
+     #params,_ =  scipy.optimize.curve_fit(lambda t,a,b,c: a*np.exp(b*t),  xs,  np.log(ys),maxfev=20000)np
+     #print(params)
+
+     #print(I_size,params,"and",params[1]/I_size)
+     #p=ax.plot(xs,ys,ls='None',marker='o',mec='k',mew=2)[0]
+     #plt.yscale('log')
+     #ax.plot(xs,np.exp(fit_funcx(xs,*params)),c=p.get_color(),ls='--',lw=2)
+     #ax.plot(xs,np.exp(fit_funcx(xs,.15)),c=p.get_color(),ls='',marker='^',lw=2)
+     #print(fit_funcx(xs,*params))
+     #plt.show(block=False)
+     #return xs
+     return params
+
+def fitA(Ls,As):
+     def fit_func2(L,a,b):
+          return (a/(L**.5)+b)
+
+     print(Ls.shape,As.shape)
+     params,_ =  scipy.optimize.curve_fit(fit_func2,  Ls,  As, maxfev=20000)
+     plt.plot(Ls,As)
+     print(params)
+     plt.plot(Ls,fit_func2(Ls,*params),ls='--',lw=2)
+     plt.xscale('log')
+     plt.show(block=False)
+def Comp(L):
+     f,ax=plt.subplots()
+     xs=plotExp(L,ax)
+     ax2=ax.twinx()
+     #ax2.plot(xs,L**(L**xs),'c.-')
+     #ax2.plot(xs,L**(L**xs),'c.-')
+     ax2.set_yscale('log')
+     #ax.plot(xs,scaling(L,xs),'r:')
+
+def scaling(L,s):
+     return np.exp((-.086*np.log(L)+.54) * np.exp((1.6*np.log(L)-1.13)*s,dtype=np.float128),dtype=np.float128)
+     
+
+def drop_time(L,S_c):
+     ##fix rounding error
+     times = expected_steps_fundamental(drop_matrix(L,S_c))[1:]
+     distrs = __getSteadyStates(__matrix(L,S_c)[1:,1:])[1]
+     return times.dot(distrs)
 
 def expected_steps_fundamental(Q):
     I = np.identity(Q.shape[0])
     N = np.linalg.inv(I - Q)
     o = np.ones(Q.shape[0])
-    return np.dot(N,o)
+    
+    return np.dot(N,o,)
 
 def expected_steps_fast(Q):
     I = np.identity(Q.shape[0])

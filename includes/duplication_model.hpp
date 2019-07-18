@@ -6,7 +6,11 @@
 #include "core_phenotype.hpp"
 #include "core_evolution.hpp"
 
-constexpr uint8_t interface_size=128;
+#ifndef GCC_INTERFACE_LENGTH
+#define GCC_INTERFACE_LENGTH 64
+#endif
+
+constexpr uint8_t interface_size=GCC_INTERFACE_LENGTH;
 using interface_type = std::bitset<interface_size>;
 
 using Genotype = std::vector<interface_type>;

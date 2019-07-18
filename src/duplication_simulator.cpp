@@ -15,8 +15,8 @@ void InteractionMetrics() {
   std::vector<uint32_t> res_S(N_runs),res_A(N_runs);
 #pragma omp parallel for schedule(dynamic) 
   for(uint32_t r=0;r < N_runs;++r) {
-    res_S[r]= DiscoverInteraction(false,false);
-    res_A[r]= DiscoverInteraction(false,true);
+    res_S[r]= DiscoverInteraction(true,false);
+    res_A[r]= DiscoverInteraction(false,false);
   }    
   BinaryWriter(f_out,res_S);
   BinaryWriter(f_out,res_A); 

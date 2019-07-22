@@ -4,6 +4,8 @@
 
 void InterfaceAssembly::SetBindingStrengths() {
   samming_threshold=static_cast<uint8_t>(interface_size*(1-binding_threshold));
+  if(interface_size*(1-binding_threshold) - samming_threshold > .999)
+    ++samming_threshold;
   for(size_t i=0;i<=samming_threshold;++i)
       binding_probabilities[i]=std::pow(1-double(i)/interface_size,temperature);
 }

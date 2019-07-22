@@ -47,8 +47,22 @@ def loadData(S,fname='Discovs'):
 def loadBinary(S,fname='Discovery',shape=(-1)):
      return np.fromfile('{}_{:.6f}.BIN'.format(fname,S),dtype=np.uint32).reshape(shape)
 
+def plotDecay2(runs):
+     plt.figure()
+     for L in (30,40,50,60,80,120):
+          raws = []
+          Ss=[]
+          for file_ in sorted(glob.glob(f'{L}/*')):
+               S=float(file_[file_.find('_')+1:file_.rfind('.')])
+               #print(S)
+               Ss.append(S)
+               data = np.fromfile(file_,dtype=np.uint32).reshape((-1,runs)).astype(np.float64)
+               data_S = data[::2]
+               data_A = data[1::2]
+               
+               
 import glob
-def plotDi():
+def plotDiscovery2():
      plt.figure()
      for L in (30,40,50,60,80,120):
           raws = []

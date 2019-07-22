@@ -30,7 +30,7 @@ import pandas as pd
 null_pid,init_pid=np.array([0,0],dtype=np.uint8),np.array([1,0],dtype=np.uint8)
 
 
-from matplotlib.colors import ListedColormap, Normalize
+from matplotlib.colors import ListedColormap, Normalize, LinearSegmentedColormap
 import matplotlib as mpl
 
 
@@ -44,6 +44,66 @@ def norm_rows(a):
 
 import matplotlib.colors as mpc
 import numpy.ma as ma
+
+def plotNewHomology(run,L,edges):
+     
+     raw_data = np.fromfile('scripts/{}_Run{}.txt'.format('Zomology',run),dtype=np.uint16).reshape((-1,L+1))
+     data = {}
+     for i in range(4):
+          for j in range(4):
+               data[(i,j)] = raw_data[i*4+j::16]
+
+     f,axes= plt.subplots(len(edges),1,sharex=True,sharey=True)
+
+     colors= ['forestgreen','royalblue','orangered']
+     for i,edge in enumerate(edges):
+          plotHomology(data[edge],ax=axes[i],user_color=colors[i])
+          axes[i].axis('off')
+          #return data[edge]
+     plt.show(block=False)
+     
+     return
+     
+ 
+     
+def avg(myArray, N=2):
+    cum = np.cumsum(myArray,0)
+    result = cum[N-1::N]/float(N)
+    result[1:] = result[1:] - result[:-1]
+
+    remainder = myArray.shape[0] % N
+    if remainder != 0:
+        if remainder < myArray.shape[0]:
+            lastAvg = (cum[-1]-cum[-1-remainder])/float(remainder)
+        else:
+            lastAvg = cum[-1]/float(remainder)
+        result = np.vstack([result, lastAvg])
+
+    return result     
+
+def plotHomology(data,L=None, ax=None,user_color='red'):
+     if isinstance(data,int):
+          data = readBinaryVectors('Zomology',data,L)
+
+     show = ax is None
+     if ax is None:
+          f,ax = plt.subplots()
+          
+     data=np.apply_along_axis(norm_rows,1,data.astype(np.float))
+     data = avg(data,20)
+     pop_grid= ma.masked_equal(data[:300].T,0)
+
+     cm = LinearSegmentedColormap.from_list("", ['gainsboro',user_color])
+     px=ax.pcolormesh(pop_grid,cmap=cm,norm=mpc.LogNorm(.005,.25),rasterized=False)
+     #plt.colorbar(px,ax=ax)
+     #vmin=pop_grid[1:].min(), vmax=pop_grid[1:].max())
+     #print(pop_grid[1:].min(),pop_grid[1:].max())
+     #
+     if show:
+          plt.show(block=False)
+     
+
+
 def plotHomologyEvolution(run,L,norm=True,annotate=False):
 
      f,axes=plt.subplots(2,1,sharex=True)
@@ -502,3 +562,13 @@ def main():
      
 if __name__ == "__main__":
      main()
+
+
+import sympy
+from sympy import Symbol
+from sympy.matrices import Matrix, eye, zeros, ones, diag
+
+def makeSymMatrix(N):
+     L = Symbol('L')
+     M = eye(4) * 1
+     return M

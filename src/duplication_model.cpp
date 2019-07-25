@@ -40,6 +40,11 @@ size_t InterfaceAssembly::Mutation(Genotype& genotype, bool duplication=false, b
 }
 
 double InterfaceAssembly::InteractionMatrix(const interface_type face_1,const interface_type face_2) {
+  /*
+  #warning "Temporary disable homomeric"
+  if(face_1 == face_2)
+    return 0;
+  */
   return binding_probabilities[interface_model::SammingDistance(face_1,face_2)];
 }
 

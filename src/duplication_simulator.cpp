@@ -1,5 +1,8 @@
 #include "duplication_simulator.hpp"
 #include <iostream>
+#ifndef FULL_WRITE
+#define FULL_WRITE 0
+#endif
 
 constexpr bool BINARY_WRITE_FILES=false;
 bool KILL_BACK_MUTATIONS=false;
@@ -259,7 +262,7 @@ void EvolvePopulation(std::string run_details) {
 
   std::ofstream fout_selection_history, fout_phenotype_IDs, fout_size, fout_interactions2, fout_strength, fout_zomology;
 
-  const bool FULL_WRITE=false;
+  
   if(FULL_WRITE) {
     fout_selection_history.open(file_base_path+"Selections"+file_simulation_details,std::ios::binary);
     fout_phenotype_IDs.open(file_base_path+"PIDs"+file_simulation_details,std::ios::out );
@@ -281,6 +284,10 @@ void EvolvePopulation(std::string run_details) {
   std::vector<PopulationGenotype> evolving_population(simulation_params::population_size),reproduced_population;
   reproduced_population.resize(simulation_params::population_size);
   std::vector<uint16_t> binary_homologies(interface_size+1), binary_strengths(interface_size+1);
+  std::map<std::pair<int,int>, std::vector<uint16_t>> binary_homology;//(interface_size+1)
+  for(int i =0; i<4;++i)
+    for(int j=0; j<4; ++j)
+      binary_homology[std::make_pair(i,j)] = binary_homologies;
   
   
   FitnessPhenotypeTable pt = FitnessPhenotypeTable();
@@ -318,7 +325,7 @@ void EvolvePopulation(std::string run_details) {
       }
       
       InterfaceAssembly::Mutation(evolving_genotype.active_space,1,1,1);
-            
+
       //evolving_genotype.subunits=evolving_genotype.genotype;
 
       evolving_genotype.pid_interactions.clear();
@@ -359,6 +366,8 @@ void EvolvePopulation(std::string run_details) {
         for(const auto& ints_kv : pid_kv.second) {
           auto IP = ints_kv.first;
           binary_homologies[(evolving_genotype.active_space[IP.first]^evolving_genotype.active_space[IP.second]).count()]+=ints_kv.second;
+          binary_homology[std::minmax(IP.first%4,IP.second%4)][(evolving_genotype.active_space[IP.first]^evolving_genotype.active_space[IP.second]).count()]+=ints_kv.second;
+
           binary_strengths[interface_size-interface_model::SammingDistance(evolving_genotype.active_space[IP.first],evolving_genotype.active_space[IP.second])]+=ints_kv.second;
         }
       }
@@ -377,7 +386,9 @@ void EvolvePopulation(std::string run_details) {
       }
       
     } /*! END GENOTYPE LOOP */
-
+    
+    if(!FULL_WRITE && std::find_if(evolution_record.begin(), evolution_record.end(),[=](auto record){return std::get<0>(record).first >= 12;})!=evolution_record.end())
+      break;
 
     /*! SELECTION */
     uint16_t nth_repro=0;
@@ -393,12 +404,11 @@ void EvolvePopulation(std::string run_details) {
       fout_phenotype_IDs<<"\n";
       fout_size<<"\n";
       fout_interactions2<<"\n";
-
-      BinaryWriter(fout_zomology,binary_homologies);
+      for(int i =0; i<4;++i)
+        for(int j=0; j<4; ++j)
+          BinaryWriter(fout_zomology,binary_homology[std::make_pair(i,j)]);
       BinaryWriter(fout_strength,binary_strengths);
     }
-
-
 
     
     

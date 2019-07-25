@@ -32,6 +32,10 @@ CXXFLAGS += -DGCC_INTERFACE_LENGTH=$(ILen)
 Du_TARGET := $(Du_TARGET)_L$(ILen)
 endif
 
+ifdef FW
+CXXFLAGS += -DFULL_WRITE=1
+endif
+
 INC         := -I$(INCDIR) -I$(LIBDIR)/$(INCDIR)
 INCDEP      := -I$(INCDIR) -I$(LIBDIR)/$(INCDIR)
 

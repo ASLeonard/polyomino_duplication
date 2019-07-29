@@ -227,6 +227,7 @@ def generateRecord(full_simulations,full_sets):
 
      new_data = defaultdict(list)
      new_df = []
+     new_comp = []
      cnt=0
      terminal_states=[0,0]
 
@@ -235,6 +236,7 @@ def generateRecord(full_simulations,full_sets):
           trimmed_nodes=[]
           node_details=defaultdict(dict)
           heteromeric_discovery = {}
+          heteromeric_composition = {}
           sets=[sorted(sorted(sets,reverse=True),key=len,reverse=True)[0]]
           for branch in sets:
                initial_details={}
@@ -263,6 +265,11 @@ def generateRecord(full_simulations,full_sets):
                     for edge in sim[leaf][4:]:
                          edge_pair=tuple(sorted(e%4 for e in edge[:2]))
 
+                         if edge_pair not in heteromeric_composition:
+                              heteromeric_composition[edge_pair] = (stage,edgeClassification(edge[:2],node_details[leaf][edge_pair][0]))
+                         else:
+                              heteromeric_composition[edge_pair] = (heteromeric_composition[edge_pair][0],edgeClassification(edge[:2],node_details[leaf][edge_pair][0]))
+                              
                          ##discovered in wrong order
                          if (sim[leaf][2]-node_details[leaf][edge_pair][1])<0:
                               print("negative time of discovery")
@@ -294,6 +301,9 @@ def generateRecord(full_simulations,full_sets):
                     new_data[stage].append(generation)
                     #new_data[len(temp_x[x])].append(x)
                     #new_data.append([x,len(temp_x[x])])
+                    
+               for (stage,composition) in heteromeric_composition.values():
+                    new_comp.append({'stage':stage,'class':composition})
 
                node_details=dict(node_details)
 
@@ -307,7 +317,7 @@ def generateRecord(full_simulations,full_sets):
                     if edgeTopology(edge[:2])!=1:
                          terminal_states[node_details[leaf][edge_pair][0] == 0]+=1
                         
-     return pd.DataFrame(DATA),terminal_states,pd.DataFrame(new_df),new_data
+     return pd.DataFrame(DATA),terminal_states,pd.DataFrame(new_df),new_data, pd.DataFrame(new_comp)
 
 def makeRecord(S_hat,mu,rate,dup=True):
      sims,sets=readEvoRecord3(mu,S_hat,rate,dup)
@@ -649,13 +659,14 @@ def plotRidge(df,df2):
 
 def plotImbalance(data1,data2):
      df = []
-     tts=['homo','hetero','homo2','hetero2']
+     tts=['homo','hetero','homo2','hetero2','x','y']
      for j, data in enumerate((data1,data2)):
           for i in range(max(data['stage'])):
                data_S = data.loc[data['stage']==i]
                imbalance = sum(data_S['class']=='homodimeric')+sum(data_S['class']=='heterodimeric')
                df.append({'t':tts[j*2],'stage':i,'imb': (sum(data_S['class']=='homodimeric')/imbalance) if sum(data_S['class']=='homodimeric')> 0 else 0})
                df.append({'t':tts[j*2+1],'stage':i,'imb':-(sum(data_S['class']=='heterodimeric')/imbalance) if sum(data_S['class']=='heterodimeric')> 0 else 0})
+               #df.append({'t':tts[j*3+1],'stage':i,'imb': sum(data_S['class']=='Du-Sp')})
                           #'imb':np.log10(imbalance) if imbalance>0 else -np.log10(-imbalance)})
           
      df = pd.DataFrame(df)
@@ -663,6 +674,26 @@ def plotImbalance(data1,data2):
      sns.barplot(orient='h',data=df,y='stage',hue='t',x='imb')
      plt.show(0)
 
+def plotImbalance2(data1,data2):
+     df = []
+     tts=['homo','hetero','homo2','hetero2']
+     for j, data in enumerate((data1,data2)):
+          data = data.loc[(data['class']=='Du-Sp') | (data['class']=='heterodimeric')]
+          if len(data) == 0:
+               continue
+          for i in range(max(data['stage'])):
+               data_S = data.loc[data['stage']==i]
+               if len(data_S) == 0:
+                    continue
+               imbalance = sum(data_S['class']=='Du-Sp')+sum(data_S['class']=='heterodimeric')
+               df.append({'t':tts[j*2],'stage':i,'imb': sum(data_S['class']=='Du-Sp')/imbalance})
+               df.append({'t':tts[j*2+1],'stage':i,'imb':-sum(data_S['class']=='heterodimeric')/imbalance})
+
+          
+     df = pd.DataFrame(df)
+     plt.figure()
+     sns.barplot(orient='h',data=df,y='stage',hue='t',x='imb')
+     plt.show(0)
 
 def loadRaw(Mu,S,D):
      nums= []
@@ -676,14 +707,15 @@ def loadRaw(Mu,S,D):
           i = i%3
      return nums
 
+from interface_formation import formTime
 def plotCumin(data,ls='-'):
-     total_runs = len(data[1])
+     total_runs = len(data[0])
      #plt.figure()
      for stage in data.keys():
           if stage>2:
                continue
           times = np.array([0]+sorted(data[stage]))
           #(formTime(64,.75)/100)
-          plt.plot(times/(formTime(64,.75)/100),np.arange(0,len(times))/total_runs,label=stage,ls=ls)
+          plt.plot(times/(formTime(128,.71875)/100),np.arange(0,len(times))/total_runs,label=stage,ls=ls)
      plt.legend()
      plt.show(0)

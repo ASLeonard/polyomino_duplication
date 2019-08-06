@@ -230,23 +230,34 @@ def generateRecord(full_simulations,full_sets):
      new_comp = []
      cnt=0
      terminal_states=[0,0]
-
+     fail_rate = [0,0,0]
+     
      for sim, sets in zip(full_simulations,full_sets):
-          #print(sets)
           trimmed_nodes=[]
           node_details=defaultdict(dict)
           heteromeric_discovery = {}
-          heteromeric_composition = {}
+          heteromeric_compositions = []
           sets=[sorted(sorted(sets,reverse=True),key=len,reverse=True)[0]]
+
+          dont_break = False
+          fail_rate[0] += 1
+          previous_generation = 0
           for branch in sets:
                initial_details={}
                cnt+=1
+               observed_pairs = set()
+               branch = branch[:3]
                for stage, (leaf,parent) in enumerate(zip(branch,(-1,)+branch)):
 
+                    if len(observed_pairs - {tuple(sorted(e%4 for e in edge[:2])) for edge in sim[leaf][4:]}) >= 1:
+                         fail_rate[1] += 1
+                         #print('Unstable evo')
+                         break
                     ##calculate supporting information on homology, occurence, etc.
                     minimals=defaultdict(list)
                     for edge in sim[leaf][4:]:
                          edge_pair=tuple(sorted(e%4 for e in edge[:2]))
+                         observed_pairs.add(edge_pair)
                          minimals[edge_pair].append(edge[2])
                          
                     for ep,homol in minimals.items():
@@ -262,61 +273,61 @@ def generateRecord(full_simulations,full_sets):
                          trimmed_nodes.append(leaf)
 
                     ##use supporting information to create data row for this transition
+                    heteromeric_composition = {}
+                    if len({tuple(sorted(e%4 for e in edge[:2])) for edge in sim[leaf][4:]}) != stage+1:
+                         fail_rate[2] += 1
+                         #print('Doubled topology, bad evo')
+                         break
                     for edge in sim[leaf][4:]:
                          edge_pair=tuple(sorted(e%4 for e in edge[:2]))
 
-                         if edge_pair not in heteromeric_composition:
+
+
+                         if edge_pair not in heteromeric_composition or heteromeric_composition[edge_pair][1] == 'homodimeric':
                               heteromeric_composition[edge_pair] = (stage,edgeClassification(edge[:2],node_details[leaf][edge_pair][0]))
-                         else:
-                              heteromeric_composition[edge_pair] = (heteromeric_composition[edge_pair][0],edgeClassification(edge[:2],node_details[leaf][edge_pair][0]))
                               
                          ##discovered in wrong order
                          if (sim[leaf][2]-node_details[leaf][edge_pair][1])<0:
                               print("negative time of discovery")
                               continue
                          
-                         if edge[0] != edge[1]:
+                         if stage==0 and True and edge[0] == edge[1]:
                               if edge_pair not in heteromeric_discovery:
-                                   heteromeric_discovery[edge_pair] = (len(heteromeric_discovery),sim[leaf][2] if len(heteromeric_discovery)==0 else sim[leaf][2] - list(heteromeric_discovery.values())[-1][1])
-                              #else:
-                                   
+                                   heteromeric_discovery[edge_pair] = (len(heteromeric_discovery),sim[leaf][2]  - previous_generation)
 
-                         #if sim[leaf][2] == 1871:
-                         #     print(temp_x, edge)
 
                          if node_details[leaf][edge_pair][2] == 0:
                               new_df.append({'stage':stage,'class':edgeClassification(edge[:2],node_details[leaf][edge_pair][0])})
                              
                          DATA.append({'occurence':node_details[leaf][edge_pair][2],'generation':sim[leaf][2],'t_0':sim[leaf][2]-node_details[leaf][edge_pair][1],'homology':edge[2],'edge_pair': edgeTopology(edge[:2]),'h_0':node_details[leaf][edge_pair][0],'class': edgeClassification(edge[:2],node_details[leaf][edge_pair][0])})
 
-                    #if len(temp_x) > 2:
-                    #     K1, K2 = list(sorted(temp_x.keys()))[:-3:-1]
-                    #     if len(temp_x[K1]) == len(temp_x[K2]):
-                    #          del temp_x[K1]
-                         
-                         
+  
+                    for (stage,composition) in heteromeric_composition.values():
+                         new_comp.append({'stage':stage,'class':composition})     
+               else:
+                    dont_break = True
+               previous_generation = sim[leaf][2]
+               if not dont_break:
+                    #fail_rate[1] += 1
+                    break
           ##after all leafs recorded, take information on max phenotype
           else:
                for (stage,generation) in heteromeric_discovery.values():
                     new_data[stage].append(generation)
-                    #new_data[len(temp_x[x])].append(x)
-                    #new_data.append([x,len(temp_x[x])])
-                    
-               for (stage,composition) in heteromeric_composition.values():
-                    new_comp.append({'stage':stage,'class':composition})
+
+               if not dont_break:
+                    break
 
                node_details=dict(node_details)
 
-               #leaf_index, edges = max(enumerate(sim), key=itemgetter(1))
-               #print(edges)
-               #print(sim[sets[0][-1]],leaf)
                edges = sim[leaf]
                for edge in edges[4:]:
                     edge_pair=tuple(sorted(e%4 for e in edge[:2]))
                     ##if is a terminal heterodimeric edge, was it initially a homodimeric one
                     if edgeTopology(edge[:2])!=1:
                          terminal_states[node_details[leaf][edge_pair][0] == 0]+=1
-                        
+                         
+     print(f'Failed on: unstable ({fail_rate[1]}), double ({fail_rate[2]}) out of {fail_rate[0]} ({(fail_rate[1]+fail_rate[2])/fail_rate[0]})')
      return pd.DataFrame(DATA),terminal_states,pd.DataFrame(new_df),new_data, pd.DataFrame(new_comp)
 
 def makeRecord(S_hat,mu,rate,dup=True):
@@ -328,14 +339,22 @@ def makeRecord(S_hat,mu,rate,dup=True):
      return generateRecord(filter(None,sims),filter(None,sets)), diversity
 
 
-def loadManyRecords(strengths,rates,mu):
+def loadManyRecords(strengths,rates,mu,L):
      evo_records = {}
      evo_ratios = {}
      evo_diversities = {}
+     results = []
+     
      for (S_hat, rate) in product(strengths, rates):
           ((evo_records[(S_hat, rate)], *evo_ratios[(S_hat, rate)]), evo_diversities[(S_hat, rate)]) = makeRecord(S_hat, mu, rate)
-
-     return evo_records, evo_ratios, evo_diversities
+          er = EvolutionResult(L,S_hat,mu,rate)
+          er.addData(evo_ratios[(S_hat, rate)][1],evo_ratios[(S_hat, rate)][3],evo_ratios[(S_hat, rate)][2])
+          results.append(er)
+          
+          
+     if len(results) == 1:
+          results = results[0]
+     return evo_records, evo_ratios, evo_diversities,results
 
 def mergeDataFrames(data_frames):
      new_frames=[df.assign(S_c=S_c,du_rate=du_rate) for (S_c, du_rate), df in data_frames.items()]
@@ -663,7 +682,7 @@ def plotImbalance(data1,data2):
      for j, data in enumerate((data1,data2)):
           for i in range(max(data['stage'])):
                data_S = data.loc[data['stage']==i]
-               imbalance = sum(data_S['class']=='homodimeric')+sum(data_S['class']=='heterodimeric')
+               imbalance = 1#sum(data_S['class']=='homodimeric')+sum(data_S['class']=='heterodimeric')
                df.append({'t':tts[j*2],'stage':i,'imb': (sum(data_S['class']=='homodimeric')/imbalance) if sum(data_S['class']=='homodimeric')> 0 else 0})
                df.append({'t':tts[j*2+1],'stage':i,'imb':-(sum(data_S['class']=='heterodimeric')/imbalance) if sum(data_S['class']=='heterodimeric')> 0 else 0})
                #df.append({'t':tts[j*3+1],'stage':i,'imb': sum(data_S['class']=='Du-Sp')})
@@ -676,7 +695,7 @@ def plotImbalance(data1,data2):
 
 def plotImbalance2(data1,data2):
      df = []
-     tts=['homo','hetero','homo2','hetero2']
+     tts=['x','homo','hetero','homo2','hetero2']
      for j, data in enumerate((data1,data2)):
           data = data.loc[(data['class']=='Du-Sp') | (data['class']=='heterodimeric')]
           if len(data) == 0:
@@ -685,7 +704,8 @@ def plotImbalance2(data1,data2):
                data_S = data.loc[data['stage']==i]
                if len(data_S) == 0:
                     continue
-               imbalance = sum(data_S['class']=='Du-Sp')+sum(data_S['class']=='heterodimeric')
+               imbalance = 1#sum(data_S['class']=='Du-Sp')+sum(data_S['class']=='heterodimeric')
+
                df.append({'t':tts[j*2],'stage':i,'imb': sum(data_S['class']=='Du-Sp')/imbalance})
                df.append({'t':tts[j*2+1],'stage':i,'imb':-sum(data_S['class']=='heterodimeric')/imbalance})
 
@@ -714,8 +734,87 @@ def plotCumin(data,ls='-'):
      for stage in data.keys():
           if stage>2:
                continue
-          times = np.array([0]+sorted(data[stage]))
-          #(formTime(64,.75)/100)
+          times = np.array([1]+sorted(data[stage]))
           plt.plot(times/(formTime(128,.71875)/100),np.arange(0,len(times))/total_runs,label=stage,ls=ls)
+
+     plt.xscale('log')
      plt.legend()
      plt.show(0)
+
+#from itertools import cycle
+from scipy.stats import expon,gamma
+
+def plotTimex(*datas):
+     N = 1
+     f,ax = plt.subplots(2)
+     pop = 100
+
+     cmap = cm.get_cmap('copper')
+
+     
+
+     asyms = []
+     combined_data = []
+     for data in datas:
+     #     for i in data.discov_times.keys():
+     #               continue
+     #          data.discov_times[0].extend(data.discov_times[i])
+          asyms.append(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c))
+
+     scaler=mpc.LogNorm(min(asyms),max(asyms))
+
+     for stage in range(N):
+          L_scaler = 2-stage
+          for data in datas:
+               #sns.kdeplot(np.array(data.discov_times[stage])/formTime(data.L//L_scaler,data.S_c)*pop,cut=0,ax=ax[stage],ls='-' if data.dup_rate else '-.',label=f'L:{data.L}, S_c:{data.S_c}, Dup:{data.dup_rate}',color=cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c))),kernel='epa')
+               print(len(np.array(data.discov_times[stage])/formTime(data.L//L_scaler,data.S_c)*pop))
+               fit_p = expon.fit(np.array(data.discov_times[stage])/formTime(data.L//L_scaler,data.S_c)*pop)
+               print(data.L,fit_p)
+               ax[stage].plot(np.linspace(0,10,101),expon(*fit_p).pdf(np.linspace(0,10,101)),marker='h',markevery=.1,label=f'L:{data.L}, S_c:{data.S_c}, Dup:{data.dup_rate}',c=cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c))))
+               #
+               sns.distplot(np.array(data.discov_times[stage])/formTime(data.L//L_scaler,data.S_c)*pop,bins=np.linspace(.001,10,10),ax=ax[stage],color=cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c))),kde=False,hist_kws={'histtype':'step','density':1})
+          
+
+
+          ax[stage].set_yscale('log',nonposy='clip')
+          #ax[stage].set_xscale('log',nonposx='clip')
+     ax[0].legend()
+     plt.show(0)
+
+#from matplotlib.sankey import Sankey
+def chartSankey(data):
+    for stage in range(max(data.discov_types['stage'])+1):
+        print('Incoming at stage ',stage)
+        for t_class in ('homodimeric','heterodimeric'):
+            print(f'\t{t_class}: ',sum((data.discov_types['class']==t_class) & (data.discov_types['stage']==stage)))
+
+          
+        print('Compositions')
+        for t_class in ('homodimeric','Du-Sp','heterodimeric'):
+            print(f'\t{t_class}: ',sum((data.composition_types['class']==t_class) & (data.composition_types['stage']==stage)))
+          
+
+class EvolutionResult(object):
+    __slots__ = ('L','S_c','mu','dup_rate','asym','discov_types','composition_types','discov_times')
+    def __init__(self,L=None,S_c=None,mu=None,dup_rate=None):
+        self.L = L
+        self.S_c = S_c
+        self.mu = mu
+        self.dup_rate = dup_rate
+        self.asym = formTime(L,S_c)/formTime(L//2,S_c)
+         
+    def addData(self,discov_types, composition_types, discov_times):
+        self.discov_types = discov_types
+        self.composition_types = composition_types
+        self.discov_times = discov_times
+     
+    def __repr__(self):
+        return f'Evolution result for \'L:{self.L}, S_c:{self.S_c}, Dup: {self.dup_rate}\''
+
+def getRes():
+     loadD = (([.83],[0,.05],.00417,60),([.75],[0,.05],.003125,80), ([.74],[0,0.05],.0025,100), ([.7],[0,.05],.0021,120),([.714],[0,.05],.001786,140))
+     res=[]
+     for d in loadD:
+          er, err, ed, (QQ)= loadManyRecords(*d)
+          res.extend(QQ)
+     return res

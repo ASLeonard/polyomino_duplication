@@ -235,14 +235,15 @@ def generateRecord(full_simulations,full_sets):
      for sim, sets in zip(full_simulations,full_sets):
           trimmed_nodes=[]
           node_details=defaultdict(dict)
-          heteromeric_discovery = {}
+          homomeric_discovery, heteromeric_discovery = {}, {}
           heteromeric_compositions = []
           sets=[sorted(sorted(sets,reverse=True),key=len,reverse=True)[0]]
 
           dont_break = False
           fail_rate[0] += 1
-          previous_generation = 0
+          
           for branch in sets:
+               previous_generation = 0
                initial_details={}
                cnt+=1
                observed_pairs = set()
@@ -289,11 +290,17 @@ def generateRecord(full_simulations,full_sets):
                          ##discovered in wrong order
                          if (sim[leaf][2]-node_details[leaf][edge_pair][1])<0:
                               print("negative time of discovery")
+                              break
                               continue
                          
-                         if stage==0 and True and edge[0] == edge[1]:
-                              if edge_pair not in heteromeric_discovery:
-                                   heteromeric_discovery[edge_pair] = (len(heteromeric_discovery),sim[leaf][2]  - previous_generation)
+                         if edge[0] != edge[1]: #tage==0 and True and
+                              if stage >= 1 and edge_pair not in heteromeric_discovery:
+                                   heteromeric_discovery[edge_pair] = (stage,sim[leaf][2]  - previous_generation)
+
+                         else:
+                              if stage == 0 and edge_pair not in homomeric_discovery:
+                                   homomeric_discovery[edge_pair] = (stage,sim[leaf][2]  - previous_generation)
+                              
 
 
                          if node_details[leaf][edge_pair][2] == 0:
@@ -314,6 +321,8 @@ def generateRecord(full_simulations,full_sets):
           else:
                for (stage,generation) in heteromeric_discovery.values():
                     new_data[stage].append(generation)
+               for (stage,generation) in homomeric_discovery.values():
+                    new_data[10+stage].append(generation)
 
                if not dont_break:
                     break
@@ -742,11 +751,11 @@ def plotCumin(data,ls='-'):
      plt.show(0)
 
 #from itertools import cycle
-from scipy.stats import expon,gamma
+from scipy.stats import expon
 
-def plotTimex(*datas):
-     N = 1
-     f,ax = plt.subplots(2)
+def plotTimex(*datas,fit_func=expon,renormalise=True):
+     N = 2
+     f,ax = plt.subplots(N)
      pop = 100
 
      cmap = cm.get_cmap('copper')
@@ -755,10 +764,8 @@ def plotTimex(*datas):
 
      asyms = []
      combined_data = []
+     
      for data in datas:
-     #     for i in data.discov_times.keys():
-     #               continue
-     #          data.discov_times[0].extend(data.discov_times[i])
           asyms.append(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c))
 
      scaler=mpc.LogNorm(min(asyms),max(asyms))
@@ -766,13 +773,15 @@ def plotTimex(*datas):
      for stage in range(N):
           L_scaler = 2-stage
           for data in datas:
-               #sns.kdeplot(np.array(data.discov_times[stage])/formTime(data.L//L_scaler,data.S_c)*pop,cut=0,ax=ax[stage],ls='-' if data.dup_rate else '-.',label=f'L:{data.L}, S_c:{data.S_c}, Dup:{data.dup_rate}',color=cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c))),kernel='epa')
-               print(len(np.array(data.discov_times[stage])/formTime(data.L//L_scaler,data.S_c)*pop))
-               fit_p = expon.fit(np.array(data.discov_times[stage])/formTime(data.L//L_scaler,data.S_c)*pop)
-               print(data.L,fit_p)
-               ax[stage].plot(np.linspace(0,10,101),expon(*fit_p).pdf(np.linspace(0,10,101)),marker='h',markevery=.1,label=f'L:{data.L}, S_c:{data.S_c}, Dup:{data.dup_rate}',c=cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c))))
-               #
-               sns.distplot(np.array(data.discov_times[stage])/formTime(data.L//L_scaler,data.S_c)*pop,bins=np.linspace(.001,10,10),ax=ax[stage],color=cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c))),kde=False,hist_kws={'histtype':'step','density':1})
+
+               data_scaled = np.array(data.discov_times[10 if stage == 0 else 1]+([] if stage ==0 else data.discov_times[2]))/((formTime(data.L//L_scaler,data.S_c)/pop) if renormalise else 1)
+               
+               #fit_p = fit_func.fit(data_scaled,floc=0)
+
+               #ax[stage].plot(np.linspace(0,max(data_scaled),101),fit_func(*fit_p).pdf(np.linspace(0,max(data_scaled),101)),marker='h',markevery=.1,label=f'L:{data.L}, S_c:{data.S_c}, Dup:{data.dup_rate}',c=cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c))))
+
+               
+               sns.distplot(data_scaled,bins=20,ax=ax[stage],color=cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c))),kde=False,hist_kws={'histtype':'step','density':1,'lw':2})
           
 
 

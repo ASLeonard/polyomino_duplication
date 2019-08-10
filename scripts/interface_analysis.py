@@ -753,7 +753,7 @@ def plotCumin(data,ls='-'):
 #from itertools import cycle
 from scipy.stats import expon
 
-def plotTimex(*datas,fit_func=expon,renormalise=True):
+def plotTimex(*datas,fit_func=None,renormalise=True):
      N = 2
      f,ax = plt.subplots(N)
      pop = 100
@@ -775,13 +775,14 @@ def plotTimex(*datas,fit_func=expon,renormalise=True):
           for data in datas:
 
                data_scaled = np.array(data.discov_times[10 if stage == 0 else 1]+([] if stage ==0 else data.discov_times[2]))/((formTime(data.L//L_scaler,data.S_c)/pop) if renormalise else 1)
-               
-               #fit_p = fit_func.fit(data_scaled,floc=0)
+               if fit_func:
+                    fit_p = fit_func.fit(data_scaled,floc=0)
 
-               #ax[stage].plot(np.linspace(0,max(data_scaled),101),fit_func(*fit_p).pdf(np.linspace(0,max(data_scaled),101)),marker='h',markevery=.1,label=f'L:{data.L}, S_c:{data.S_c}, Dup:{data.dup_rate}',c=cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c))))
+                    ax[stage].plot(np.linspace(0,max(data_scaled),101),fit_func(*fit_p).pdf(np.linspace(0,max(data_scaled),101)),marker='h',markevery=.1,label=f'L:{data.L}, S_c:{data.S_c}, Dup:{data.dup_rate}',c=cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c))))
 
-               
-               sns.distplot(data_scaled,bins=20,ax=ax[stage],color=cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c))),kde=False,hist_kws={'histtype':'step','density':1,'lw':2})
+               BINS = 15 if 0 else np.linspace(0,30,61)
+               #color=cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c)))
+               sns.distplot(data_scaled,bins=BINS,ax=ax[stage],kde=False,hist_kws={'histtype':'step','density':1,'lw':2,'alpha':.8,'ls':'-' if data.dup_rate ==0 else ':'},label=f'{data.dup_rate},{data.S_c}')
           
 
 
@@ -794,13 +795,14 @@ def plotTimex(*datas,fit_func=expon,renormalise=True):
 def chartSankey(data):
     for stage in range(max(data.discov_types['stage'])+1):
         print('Incoming at stage ',stage)
+
         for t_class in ('homodimeric','heterodimeric'):
-            print(f'\t{t_class}: ',sum((data.discov_types['class']==t_class) & (data.discov_types['stage']==stage)))
+            print(f'\t{t_class}: ',sum((data.discov_types['class']==t_class) & (data.discov_types['stage']==stage)))#/len(data.composition_types.loc[data.composition_types['stage']==stage])*100)
 
           
         print('Compositions')
         for t_class in ('homodimeric','Du-Sp','heterodimeric'):
-            print(f'\t{t_class}: ',sum((data.composition_types['class']==t_class) & (data.composition_types['stage']==stage)))
+            print(f'\t{t_class}: ',sum((data.composition_types['class']==t_class) & (data.composition_types['stage']==stage)))#/len(data.composition_types.loc[data.composition_types['stage']==stage])*100)
           
 
 class EvolutionResult(object):

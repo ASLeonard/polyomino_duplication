@@ -4,7 +4,7 @@ MAKEFLAGS+="-j $(nproc)"
 CXX         := g++
 
 #The Target Binary Program
-Du_TARGET   := DuplicationEvolution
+Du_TARGET   := NEW_DuplicationEvolution
 
 
 #The Directories, Source, Includes, Objects, Binary and Resources

@@ -18,12 +18,14 @@ def runnerCore(L,S_c,mu,dup_rate,generations,runs):
 
     os.chdir(os.path.expanduser('~/Documents/PolyDev/duplication'))
 
-    if not os.path.isfile(f'bin/DuplicationEvolution_L{L}'):
+    executable_name = f'bin/NEW_DuplicationEvolution_L{L}'
+
+    if not os.path.isfile(executable_name):
         print('Building simulation for arguments')
         subprocess.run(f'make clean && make ILen={L}',shell=True, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
         print('Compiled successfull\nRunning simulation')
 
-    subprocess.run(f'bin/DuplicationEvolution_L{L} -E '+full_args,shell=True)
+    subprocess.run(f'{executable_name} -E '+full_args,shell=True)
     print('Simulation complete')
     return
 

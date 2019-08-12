@@ -132,8 +132,8 @@ def plotHomologyEvolution(run,L,norm=True,annotate=False):
      plt.show(block=False)
 
 
-def readEvoRecord3(mu,S_c,rate,duplicate=True):
-     lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/EvoRecords/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(mu,S_c,'D' if duplicate else 'I',rate))]
+def readEvoRecord3(mu,S_c,rate,duplicate=True,FNAME='EvoRecords'):
+     lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/{}/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(FNAME,mu,S_c,'D' if duplicate else 'I',rate))]
 
 
      simulations=[[]]
@@ -293,9 +293,10 @@ def generateRecord(full_simulations,full_sets):
                               break
                               continue
                          
-                         if edge[0] != edge[1]: #tage==0 and True and
+                         if edge[0] != edge[1]:
                               if stage >= 1 and edge_pair not in heteromeric_discovery:
                                    heteromeric_discovery[edge_pair] = (stage,sim[leaf][2]  - previous_generation)
+ 
 
                          else:
                               if stage == 0 and edge_pair not in homomeric_discovery:
@@ -308,12 +309,12 @@ def generateRecord(full_simulations,full_sets):
                              
                          DATA.append({'occurence':node_details[leaf][edge_pair][2],'generation':sim[leaf][2],'t_0':sim[leaf][2]-node_details[leaf][edge_pair][1],'homology':edge[2],'edge_pair': edgeTopology(edge[:2]),'h_0':node_details[leaf][edge_pair][0],'class': edgeClassification(edge[:2],node_details[leaf][edge_pair][0])})
 
-  
+                    previous_generation = sim[leaf][2]
                     for (stage,composition) in heteromeric_composition.values():
                          new_comp.append({'stage':stage,'class':composition})     
                else:
                     dont_break = True
-               previous_generation = sim[leaf][2]
+               
                if not dont_break:
                     #fail_rate[1] += 1
                     break
@@ -753,7 +754,9 @@ def plotCumin(data,ls='-'):
 #from itertools import cycle
 from scipy.stats import expon
 
-def plotTimex(*datas,fit_func=None,renormalise=True):
+def plotTimex(*datas,fit_func=None,renormalise=True,full_renorm=False):
+     if full_renorm:
+          assert renormalise, 'conflicting settings'
      N = 2
      f,ax = plt.subplots(N)
      pop = 100
@@ -771,16 +774,41 @@ def plotTimex(*datas,fit_func=None,renormalise=True):
      scaler=mpc.LogNorm(min(asyms),max(asyms))
 
      for stage in range(N):
-          L_scaler = 2-stage
           for data in datas:
+               L_scaler = 2-stage
+               ##all homomers
+               if stage == 0:
+                    mutate_rate_adjust = 4
+                    combinatoric_adjust = 1
+               else:
+                    mutate_rate_adjust = 4
+                    combinatoric_adjust = .5
+                         
+               #mutate_rate_adjust = 1
+               #combinatoric_adjust = 1
+               gamma_factor = 1
+               if full_renorm:
+                    if stage == 1 and data.dup_rate > .01:
+                         mutate_rate_adjust = 4
+                         gamma_factor = getGammas()[data.L]/100
+                         combinatoric_adjust = 1
+                         L_scaler = 2
 
-               data_scaled = np.array(data.discov_times[10 if stage == 0 else 1]+([] if stage ==0 else data.discov_times[2]))/((formTime(data.L//L_scaler,data.S_c)/pop) if renormalise else 1)
+                         
+                    
+                   
+
+               data_scaled = np.array(data.discov_times[10 if stage == 0 else 1]+([] if stage == 0 else data.discov_times[2]))/((formTime(data.L//L_scaler,data.S_c)/pop)*mutate_rate_adjust / gamma_factor * combinatoric_adjust if renormalise else 1)
+               
                if fit_func:
                     fit_p = fit_func.fit(data_scaled,floc=0)
 
-                    ax[stage].plot(np.linspace(0,max(data_scaled),101),fit_func(*fit_p).pdf(np.linspace(0,max(data_scaled),101)),marker='h',markevery=.1,label=f'L:{data.L}, S_c:{data.S_c}, Dup:{data.dup_rate}',c=cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c))))
+                    ax[stage].plot(np.linspace(0,max(data_scaled),101),fit_func(*fit_p).pdf(np.linspace(0,max(data_scaled),101)),marker='h',markevery=.1,label=f'L:{data.L}, S_c:{data.S_c}, Dup:{data.dup_rate}',c=cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c))),ls='-' if data.dup_rate ==0 else ':')
 
-               BINS = 15 if 0 else np.linspace(0,30,61)
+               if renormalise:
+                    BINS = np.linspace(0,3,101) if stage ==1 else np.linspace(0,5,61)
+               else:
+                    BINS=30
                #color=cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c)))
                sns.distplot(data_scaled,bins=BINS,ax=ax[stage],kde=False,hist_kws={'histtype':'step','density':1,'lw':2,'alpha':.8,'ls':'-' if data.dup_rate ==0 else ':'},label=f'{data.dup_rate},{data.S_c}')
           
@@ -821,6 +849,9 @@ class EvolutionResult(object):
      
     def __repr__(self):
         return f'Evolution result for \'L:{self.L}, S_c:{self.S_c}, Dup: {self.dup_rate}\''
+
+def getGammas():
+     return {60:1.71, 80:3.32, 100: 3.25, 120:4.46, 140:3.74}
 
 def getRes():
      loadD = (([.83],[0,.05],.00417,60),([.75],[0,.05],.003125,80), ([.74],[0,0.05],.0025,100), ([.7],[0,.05],.0021,120),([.714],[0,.05],.001786,140))

@@ -754,7 +754,7 @@ def plotCumin(data,ls='-'):
 #from itertools import cycle
 from scipy.stats import expon
 
-def plotTimex(*datas,fit_func=None,renormalise=True,full_renorm=False):
+def plotTimex(*datas,fit_func=None,renormalise=True,full_renorm=False,row2=False):
      if full_renorm:
           assert renormalise, 'conflicting settings'
      N = 2
@@ -764,58 +764,61 @@ def plotTimex(*datas,fit_func=None,renormalise=True,full_renorm=False):
      cmap = cm.get_cmap('copper')
 
      
-
+     markers={60:'o',80:'s',100:'x',120:'^',140:'+'}
      asyms = []
-     combined_data = []
-     
+          
      for data in datas:
-          asyms.append(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c))
+          asyms.append(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c)*getGammas()[data.L]/100)
 
      scaler=mpc.LogNorm(min(asyms),max(asyms))
 
      for stage in range(N):
+          
           for data in datas:
                L_scaler = 2-stage
                ##all homomers
                if stage == 0:
-                    mutate_rate_adjust = 4
+                    mutate_rate_adjust = 1 #4 
                     combinatoric_adjust = 1
+               ##heteromers
                else:
-                    mutate_rate_adjust = 4
-                    combinatoric_adjust = .5
+                    mutate_rate_adjust = 3/4 #3/4 # 5.33
+                    combinatoric_adjust = 1#4 #4/36
                          
-               #mutate_rate_adjust = 1
-               #combinatoric_adjust = 1
                gamma_factor = 1
                if full_renorm:
                     if stage == 1 and data.dup_rate > .01:
-                         mutate_rate_adjust = 4
+                         mutate_rate_adjust = 3/4
                          gamma_factor = getGammas()[data.L]/100
-                         combinatoric_adjust = 1
+                         combinatoric_adjust = 1 #4/6
                          L_scaler = 2
 
-                         
-                    
-                   
+               pop = 100 #if stage ==1 else 10
+               raw_data = np.array(data.discov_times[10 if stage == 0 else 1]+([] if (stage == 0 or not row2) else data.discov_times[2]))
 
-               data_scaled = np.array(data.discov_times[10 if stage == 0 else 1]+([] if stage == 0 else data.discov_times[2]))/((formTime(data.L//L_scaler,data.S_c)/pop)*mutate_rate_adjust / gamma_factor * combinatoric_adjust if renormalise else 1)
-               
+               renorm_factor = (formTime(data.L//L_scaler,data.S_c) / pop / mutate_rate_adjust / gamma_factor * combinatoric_adjust) if renormalise else 1
+
+               data_scaled = raw_data/renorm_factor
+
+               asym_color = cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c)*getGammas()[data.L]/100))
                if fit_func:
                     fit_p = fit_func.fit(data_scaled,floc=0)
 
-                    ax[stage].plot(np.linspace(0,max(data_scaled),101),fit_func(*fit_p).pdf(np.linspace(0,max(data_scaled),101)),marker='h',markevery=.1,label=f'L:{data.L}, S_c:{data.S_c}, Dup:{data.dup_rate}',c=cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c))),ls='-' if data.dup_rate ==0 else ':')
+                    ax[stage].plot(np.linspace(0,max(data_scaled),101),fit_func(*fit_p).pdf(np.linspace(0,max(data_scaled),101)),marker=markers[data.L],markevery=.1,c=asym_color,ls='-' if data.dup_rate ==0 else ':')
 
                if renormalise:
-                    BINS = np.linspace(0,3,101) if stage ==1 else np.linspace(0,5,61)
+                    if not full_renorm and stage == 1 and data.dup_rate > 0.01:
+                         BINS = np.linspace(0,.5,21)
+                    else:
+                         BINS = np.linspace(0,3,21) if stage ==1 else np.linspace(0,30,21)
                else:
                     BINS=30
-               #color=cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c)))
-               sns.distplot(data_scaled,bins=BINS,ax=ax[stage],kde=False,hist_kws={'histtype':'step','density':1,'lw':2,'alpha':.8,'ls':'-' if data.dup_rate ==0 else ':'},label=f'{data.dup_rate},{data.S_c}')
+                    
+               sns.distplot(data_scaled,bins=BINS,ax=ax[stage],kde=False,hist_kws={'histtype':'step','density':1,'lw':2,'alpha':.8,'ls':'-' if data.dup_rate ==0 else '-.'},color=asym_color,label=f'L:{data.L}, S_c:{data.S_c}' if data.dup_rate ==0 else None)#,label=f'{data.dup_rate},{data.S_c}'
           
 
 
           ax[stage].set_yscale('log',nonposy='clip')
-          #ax[stage].set_xscale('log',nonposx='clip')
      ax[0].legend()
      plt.show(0)
 

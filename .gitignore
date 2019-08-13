@@ -11,6 +11,8 @@ PDB/__pycache__
 scripts/*.pyc
 PDB/*.pyc
 PDB/*dict
+PDB/*csv
+PDB/*ND
 scripts/*.so
 scripts/*.sh
 

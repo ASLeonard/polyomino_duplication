@@ -337,7 +337,7 @@ def generateRecord(full_simulations,full_sets):
                     if edgeTopology(edge[:2])!=1:
                          terminal_states[node_details[leaf][edge_pair][0] == 0]+=1
                          
-     print(f'Failed on: unstable ({fail_rate[1]}), double ({fail_rate[2]}) out of {fail_rate[0]} ({(fail_rate[1]+fail_rate[2])/fail_rate[0]})')
+     print(f'Failed on: unstable ({fail_rate[1]}), double ({fail_rate[2]}) out of {fail_rate[0]} ({(fail_rate[1]+fail_rate[2])/fail_rate[0]}) [{fail_rate[0]-fail_rate[1]-fail_rate[2]}]')
      return pd.DataFrame(DATA),terminal_states,pd.DataFrame(new_df),new_data, pd.DataFrame(new_comp)
 
 def makeRecord(S_hat,mu,rate,dup=True):

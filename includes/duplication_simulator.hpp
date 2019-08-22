@@ -34,6 +34,7 @@ void DimerModelTable(FitnessPhenotypeTable* pt);
 /* Main evolution runners */
 uint32_t DiscoverInteraction(bool self_interaction,bool duplication=false); 
 uint32_t DecayInteraction(bool self_interaction, uint8_t gap);
+uint32_t DecayDup(uint8_t gap);
 void InteractionMetrics();
 
 void EvolutionRunner();

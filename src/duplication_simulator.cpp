@@ -9,13 +9,16 @@ bool KILL_BACK_MUTATIONS=false;
 const std::string file_base_path="//scratch//asl47//Data_Runs//Bulk_Data//";
 const std::string shared_base_path="//rscratch//asl47//Duplication//EvoRecords//";
 const std::string shared_base_path2="//rscratch//asl47//Duplication//Metrics//";
+const std::string shared_base_path3="";
 const std::map<Phenotype_ID,uint8_t> phen_stages{{{0,0},0},{{10,0},4},{{1,0},1},{{2,0},2},{{4,0},2},{{4,1},3},{{8,0},3},{{12,0},4},{{16,0},4}};
 
 
 void InteractionMetrics() {
   const uint32_t N_runs=simulation_params::independent_trials;
+  
   std::ofstream f_out(shared_base_path2+"Discovery_"+std::to_string(InterfaceAssembly::binding_threshold)+".BIN", std::ios::binary);
   std::vector<uint32_t> res_S(N_runs),res_A(N_runs);
+/*
 #pragma omp parallel for schedule(dynamic) 
   for(uint32_t r=0;r < N_runs;++r) {
     res_S[r]= DiscoverInteraction(true,false);
@@ -24,16 +27,16 @@ void InteractionMetrics() {
   BinaryWriter(f_out,res_S);
   BinaryWriter(f_out,res_A); 
   return;
-
-  std::ofstream f_out2(file_base_path+"Decay_"+std::to_string(InterfaceAssembly::binding_threshold)+".BIN", std::ios::binary);
-  for(uint8_t gap=0;gap<=InterfaceAssembly::samming_threshold;++gap) {
+    */
+  std::ofstream f_out2(shared_base_path3+"Decay_"+std::to_string(InterfaceAssembly::binding_threshold)+".BIN", std::ios::binary);
+  for(uint8_t gap=0;gap<=InterfaceAssembly::samming_threshold/2;++gap) {
 #pragma omp parallel for schedule(dynamic) 
     for(uint32_t r=0;r < N_runs;++r) {
-      if(gap%2==0 && InterfaceAssembly::samming_threshold%2==0)
-        res_S[r] = DecayInteraction(true,gap/2);
-      res_A[r]= DecayInteraction(false,gap);
+      //if(gap%2==0 && InterfaceAssembly::samming_threshold%2==0)
+      //  res_S[r] = DecayDup(true,gap/2);
+      res_A[r]= DecayDup(gap);
     }
-    BinaryWriter(f_out2,res_S);
+    //BinaryWriter(f_out2,res_S);
     BinaryWriter(f_out2,res_A);
   }  
 }
@@ -114,6 +117,40 @@ uint32_t DecayInteraction(bool self_interaction, uint8_t gap) {
   return 0;
 
 }
+
+uint32_t DecayDup(uint8_t gap) {
+  interface_type geno1=InterfaceAssembly::GenRandomSite(), geno2=interface_model::ReverseBits(~geno1);
+  for(size_t n=0;n<interface_size/2;++n)
+    geno1[interface_size-1-n]=~geno1[n];
+
+  std::uniform_int_distribution<uint8_t> dis(0, interface_size-1);
+  std::vector<uint8_t> bits(interface_size/2);
+  std::iota(bits.begin(),bits.end(),0);
+  std::shuffle(bits.begin(),bits.end(),RNG_Engine);
+  std::bernoulli_distribution B_d(0.5);
+
+  for(uint8_t b=0; b<gap;++b)
+    geno1.flip(bits[b]);
+  geno2 = geno1;
+
+  for(uint32_t generation=1;generation<=simulation_params::generation_limit;++generation) {
+    if(B_d(RNG_Engine))
+      geno1.flip(dis(RNG_Engine));
+    else
+      geno2.flip(dis(RNG_Engine));
+
+    if(interface_model::SammingDistance(geno1,geno2)<=InterfaceAssembly::samming_threshold) {
+      if(interface_model::SammingDistance(geno1,geno1)>InterfaceAssembly::samming_threshold && interface_model::SammingDistance(geno2,geno2)>InterfaceAssembly::samming_threshold)
+        return 1;
+  }
+    else
+      return 0;
+  }
+  
+  return -1;
+
+}
+
 void EvolveHomology(std::string run_details,bool self) {
   std::string file_simulation_details=run_details+".BIN";
   std::ofstream fout_homology(file_base_path+"Bomology"+file_simulation_details,std::ios::binary); 

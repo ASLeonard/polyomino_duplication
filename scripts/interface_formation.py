@@ -70,3 +70,74 @@ def dropTime(L,S_c):
 ##approx
 def scaler(L,S):
      return np.exp((.7/np.sqrt(L)+.08)*L**(1.35*S))
+
+
+def loadBinary(S,fname='Discovery',shape=(-1)):
+     return np.fromfile('{}_{:.6f}.BIN'.format(fname,S),dtype=np.uint32).reshape(shape)
+## testing
+def makeDropDistribution(loaded_data,L,S_c):
+    distrs = getSteadyStates(makeTransitionMatrix(L,S_c)[1:,1:])[1]
+
+    Target_N = 100000
+     
+    EMP_set = []
+
+    for index, state in enumerate(distrs[::-1]):
+        EMP_set.extend(np.random.choice(loaded_data[index],size=int(state*Target_N)))
+
+    print(np.mean(EMP_set))
+    return EMP_set
+
+from collections import Counter
+def makeDiscrete(EMP):
+    Cnt = Counter(EMP)
+
+    keys = sorted(list(Cnt.keys()))
+    vals = np.array([Cnt[k] for k in keys])
+    vals = vals/np.sum(vals)
+
+    cus= rv_discrete(values=(keys,vals))
+
+    return cus
+    
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+from scipy.stats import rv_discrete, linregress
+
+def plotEMP(L,S_c,normed=False,ax=None):
+    loaded_data = loadBinary(S_c,'Decay',(-1,100000))
+
+    sym = makeDropDistribution(loaded_data[::4],L//2,S_c)
+    asym = makeDropDistribution(loaded_data[1::2],L,S_c)
+
+    if True:
+        sym = np.array(sym)
+        asym = np.array(asym)
+
+    sym_PD = makeDiscrete(sym)
+    asym_PD = makeDiscrete(asym)
+
+    Xs = np.arange(1,101)
+    sN = dropTime(L//2,S_c) if normed else 1
+    aN = dropTime(L,S_c) if normed else 1
+    plt.plot(Xs/sN,sym_PD.pmf(Xs),ls='-.')
+    plt.plot(Xs/aN,asym_PD.pmf(Xs),ls='-')
+
+    print(sum(np.all(sym_PD.rvs(size=2) < asym_PD.rvs(size=1)) for _ in range(100000))/100000)
+
+
+ 
+        
+    #plt.yscale('log')
+    plt.show(0)
+    
+def calcGamma(L,S_c):
+    sx= getSteadyStates(makeTransitionMatrix(L//2,S_c)[1:,1:])[1][::-1]
+    loaded_data = loadBinary(S_c,'Decay',(-1,100000))
+    print('M',np.mean(loaded_data,axis=1))
+    print('S',np.std(loaded_data,axis=1))
+    return sx.dot(np.mean(loaded_data,axis=1))*100
+
+dd = [(60,.83),(80,.75),(100,.74),(120,.7),(140,.714)]
+

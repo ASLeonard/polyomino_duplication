@@ -59,7 +59,7 @@ def needleAlign(pdb_1,chain_1,pdb_2,chain_2,needle_EXEC='./needle'):
 
     subprocess.run(f'{needle_EXEC} {BASE_PATH}FASTA/{pdb_1}_{chain_1}.fasta.txt {BASE_PATH}FASTA/{pdb_2}_{chain_2}.fasta.txt -gapopen 10.0 -gapextend 0.5 -outfile {BASE_PATH}NEEDLE/{pdb_1}_{chain_1}_{pdb_2}_{chain_2}.needle',shell=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 
-def makeTypes(pdb):
+def makeTypes(pdb,chain_1=None,chain_2=None):
     similaritythresh = 2.0
     type_ = {}
     with open(BASE_PATH+f'INT/{pdb}.int') as file_:
@@ -67,11 +67,16 @@ def makeTypes(pdb):
             line = line_raw.split('\t')
             chain,res = line[:2]
 
-            interactions=[(a,d,float(c)) for (a,b,c,d) in (Q.split() for Q in line[3:]) if c!='0']
+            interactions=[(a,d,float(c)) for (a,_,c,d) in (Q.split() for Q in line[3:]) if c!='0']
+
+            if chain_1 and chain_2:
+                interactions = [interaction for interaction in interactions if (interaction[0][0]==chain_2 and interaction[1][0]==chain_1)]
                 
             if interactions:
-                if len(interactions) != 2 or abs(interactions[0][2]-interactions[1][2]) >= similaritythresh or interactions[0][0] != interactions[1][1] or interactions[0][1] != interactions[1][0]: 
-                    interactions.sort(key=itemgetter(2),reverse=True)
+                #if len(interactions) != 2 or abs(interactions[0][2]-interactions[1][2]) >= similaritythresh or interactions[0][0] != interactions[1][1] or interactions[0][1] != interactions[1][0]:
+
+                interactions.sort(key=itemgetter(2),reverse=True)
+                interactions.sort(key=itemgetter(0))
                     
                 type_[chain+res] = tuple(reversed(interactions[0][0].split('_')))
     return type_
@@ -81,12 +86,16 @@ def makeTypes(pdb):
 def readNeedle(pdbs):
     seqs, align = ['', ''], ''
     read = 0
+    similarity, score = None, None
+
     with open(BASE_PATH+'NEEDLE/{}_{}_{}_{}.needle'.format(*pdbs)) as file_:
         for line in file_:
             ##can skip empty or commented lines in .needle file
             if line == '\n' or line[0] == '#':
                 if 'Similarity' in line:
                     similarity = float(line[line.find('(')+1 : line.find('%')])
+                elif 'Score' in line:
+                    score = float(line.split()[-1])
                 continue
             
             ll = line.strip().split()
@@ -98,33 +107,36 @@ def readNeedle(pdbs):
             elif read == 1:
                 align += line[21:71].replace(' ','_').strip()
 
-    return seqs, align, similarity
+    assert similarity is not None, 'Probable error in needle calculation'
+    return seqs, align, similarity, score
 
 def makeInteractions(type_, seq, chain):
 
-    def numalpha(s):
-        if int(s) > 9:
-            s = str(10+(int(s)-10)%26) # WRAP ROUND NUMBERS LARGER THAN 35 BACK TO a, b, c...
-            s = chr(97+int(s)-10)
-        return s
+    ##wrap double digit numbers to letters for chain ID'ing
+    def wrapDoubleDigits(code):
+        code_int = int(code)
+        if code_int >= 10:
+            ##wrap numbers >36 back to start of alphabet etc
+            code = chr(97 + (code_int-10)%26)
+        return code
 
-    c = 0
-    inter_A = ''
-    inter_B = ''
+    fasta_index = 0
+    interaction_ID_seq,interaction_chain_seq = '', ''
+    
     for element in seq:
         if element != '-':
-            chain_key = chain+str(c)
+            chain_key = chain+str(fasta_index)
             if chain_key in type_:
-                inter_A += numalpha(type_[chain_key][0])
-                inter_B += type_[chain_key][1]
+                interaction_ID_seq += wrapDoubleDigits(type_[chain_key][0])
+                interaction_chain_seq += type_[chain_key][1]
             else:
-                inter_A += ' '
-                inter_B += ' '
-            c += 1
+                interaction_ID_seq += ' '
+                interaction_chain_seq += ' '
+            fasta_index += 1
         else:
-            inter_A += ' '
-            inter_B += ' '
-    return inter_A, inter_B
+            interaction_ID_seq += ' '
+            interaction_chain_seq += ' '
+    return interaction_ID_seq, interaction_chain_seq
 
 def writePialign(pdbs,inter1a,inter1b,inter2a,inter2b,align,seq1,seq2):
     iter_chunk=50
@@ -179,12 +191,12 @@ def readPmatrixFile(pdb_1,chain_1,pdb_2,chain_2):
 
     
                 
-def generateAssistiveFiles(pdbs,write_intermediates=False):
-    needleAlign(*pdbs,needle_EXEC='/rscratch/asl47/needle')
+def generateAssistiveFiles(pdbs,write_intermediates=True):
+    needleAlign(*pdbs[:4],needle_EXEC='/rscratch/asl47/needle')
 
-    type1 = makeTypes(pdbs[0])
-    type2 = makeTypes(pdbs[2])
-    (seq1,seq2),align, similarity = readNeedle(pdbs)
+    type1 = makeTypes(pdbs[0],pdbs[1],None if len(pdbs)<6 else pdbs[4])
+    type2 = makeTypes(pdbs[2],pdbs[3],None if len(pdbs)<6 else pdbs[5])
+    (seq1,seq2),align, similarity, score = readNeedle(pdbs)
  
 
     int_1A,int_1B = makeInteractions(type1,seq1,pdbs[1])
@@ -196,43 +208,51 @@ def generateAssistiveFiles(pdbs,write_intermediates=False):
     len_seq1,len_seq2 = (sum(c.isalpha() for c in seq) for seq in (seq1,seq2))
     no_overlap = len_seq1 + len_seq2 - len(align)
     
-    return ((similarity, no_overlap,len_seq1,len_seq2), makePmatrix(pdbs,int_1A,int_1B,int_2A,int_2B,write_intermediates))
+    return ((similarity, no_overlap,len_seq1,len_seq2,score), makePmatrix(pdbs,int_1A,int_1B,int_2A,int_2B,write_intermediates))
 
     
 
 
-def pcombine(pvalues):
+def pcombine(pvalues,comb_method='fisher'):
     if not pvalues or not all(pvalues):
-        return None
+        return 1
     else:
-        return scipy.stats.combine_pvalues(pvalues,method='fisher')[1]
+        if comb_method == 'tippett':
+            return np.min(pvalues)
+        return scipy.stats.combine_pvalues(pvalues,method=comb_method)[1]
 
-def binomialcdf(n,m1,m2,n1,n2,novg):
-    return scipy.stats.binom.sf(n-1,novg,m1*m2/(n1*n2))
+def binomialcdf(n,m1,m2,n1,n2,novg,N_FACTOR=True):
+    return scipy.stats.binom.sf(n-N_FACTOR,novg,m1*m2/(n1*n2))
 
 def MatAlign(pdb_1,chain_1,pdb_2,chain_2,needle_result=None,matrix_result=None):
     if needle_result:
-        similarity, noverlap, *length  = needle_result
+        similarity, noverlap, *length, score  = needle_result
+        needle_length = sum(length) - noverlap
     else:
-        (seq1,seq2),align, similarity = readNeedle([pdb_1,chain_1,pdb_2,chain_2])
+        (seq1,seq2),align, similarity, score = readNeedle([pdb_1,chain_1,pdb_2,chain_2])
         length = (sum(c.isalpha() for c in seq) for seq in (seq1,seq2))
         noverlap = sum(length) - len(align)
+        needle_length = len(align)
+        
         
     if matrix_result:
         row_headers,column_headers, matrix = matrix_result
-        print(row_headers, column_headers)
+
     else:
         column_headers,row_headers, matrix = readPmatrixFile(pdb_1,chain_1,pdb_2,chain_2)
 
+
     ##trivially no possible matches
     if any(i<2 for i in matrix.shape):
-        return (None,similarity)
+        ##REJECT CODE
+        return (1,1,1,0,similarity,score,needle_length,noverlap)
 
     #pmatrix = np.ones(matrix.shape)
+
     colsums,rowsums = np.meshgrid(*(np.sum(matrix,axis=I) for I in (1,0)),indexing='ij')
     
 
-    pmatrix = binomialcdf(matrix,rowsums,colsums,*length,novg=noverlap)
+    pmatrix = binomialcdf(matrix,rowsums,colsums,*length,novg=noverlap,N_FACTOR=True)
 
     val_matrix=pmatrix[1:,1:].copy()
 
@@ -245,8 +265,10 @@ def MatAlign(pdb_1,chain_1,pdb_2,chain_2,needle_result=None,matrix_result=None):
             return findMinElements(p_array,mins)
         else:
             return mins
-        
-    return (pcombine(findMinElements(val_matrix)),similarity)
+
+    alignment_scores = findMinElements(val_matrix)
+
+    return (pcombine(alignment_scores,'fisher'),pcombine(alignment_scores,'stouffer'),pcombine(list(pmatrix[1:,1:].flatten())),len(alignment_scores),similarity,score,needle_length,noverlap)
 
 
 
@@ -254,20 +276,40 @@ def MatAlign(pdb_1,chain_1,pdb_2,chain_2,needle_result=None,matrix_result=None):
 from multiprocessing import Pool,Manager
 
 def calculatePvalue(pdb_combination):
-    (het,hom) = pdb_combination
-    args=(het[:4].upper(),het[5],hom[:4].upper(),hom[5])
-    #try:
-    n_r, m_r = generateAssistiveFiles(args)
-    return (args,MatAlign(*args,needle_result=n_r,matrix_result=m_r))
-    #except Exception as e:
-    #    print(het,hom,e)
-    #    return (args, 'error')
-              
-def paralleliseAlignment(pdb_pairs):
+    (het,hom,*chains,code) = pdb_combination
+    args=(het[:4].upper(),het[5],hom[:4].upper(),hom[5],*chains)
+    try:
+        n_r, m_r = generateAssistiveFiles(args)
+        return ((args,code),MatAlign(*args[:4],needle_result=n_r,matrix_result=m_r))
+    except Exception as e:
+        print(het,hom,'!!Error!!:\t',e)
+        return ((args,code), 'error')
+
+import csv
+def paralleliseAlignment(pdb_pairs,file_name):
     print('Parellelising alignment')
-    results = Manager().dict()
-    with Pool() as pool:
-        for (key,p_value) in pool.imap_unordered(calculatePvalue,pdb_pairs,chunksize=50):
-            results['{}_{}_{}_{}'.format(*key)]=p_value
+
+    columns = ['id','code','pval_F','pval_S','pval_T','hits','similarity','score','align_length','overlap']
+    
+    results = Manager().list()
+    with Pool() as pool, open(f'/rscratch/asl47/PDB_results/{file_name}_comparison.csv','w', newline='') as csvfile:
+        f_writer = csv.writer(csvfile)
+        f_writer.writerow(columns)
+        for progress, ((key,code),p_value) in enumerate(pool.imap_unordered(calculatePvalue,pdb_pairs,chunksize=50)):
+            try:
+                if os.path.exists('/scratch/asl47/PDB/NEEDLE/{}_{}_{}_{}.needle'.format(*key)):
+                    os.remove('/scratch/asl47/PDB/NEEDLE/{}_{}_{}_{}.needle'.format(*key))
+            except FileNotFoundError:
+                print('File removal error')
+
+            #results['{}_{}_{}_{}'.format(*key)]=p_value
+            if p_value != 'error':
+                f_writer.writerow(['{}_{}_{}_{}'.format(*key),code]+[f'{n:.2e}' if isinstance(n,float) else str(n) for n in p_value])
+                
+
+                #results.append(('{}_{}_{}_{}'.format(*key),code)+p_value)
+                
+            if progress and progress % 50000 == 0:
+                print(f'done another 50k ({progress})')
     print('Finished parallel mapping')
-    return results.copy()   
+    return list(results)

@@ -54,6 +54,8 @@ void GenotypeInsertion(Genotype& genotype) {
 }
 
 size_t GenotypeDuplication(Genotype& genotype) {
+  if(InterfaceAssembly::GetActiveInterfaces(genotype).empty())
+    return 0;
   const size_t dup_gene= std::uniform_int_distribution<size_t>(0,genotype.size()/4-1)(RNG_Engine);
   genotype.insert(genotype.end(),genotype.begin()+4*dup_gene,genotype.begin()+4*dup_gene+4);
   return dup_gene;

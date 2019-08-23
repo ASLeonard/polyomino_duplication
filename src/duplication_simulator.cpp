@@ -424,7 +424,7 @@ void EvolvePopulation(std::string run_details) {
       
     } /*! END GENOTYPE LOOP */
     
-    constexpr uint8_t BREAK_SIZE_LIMIT = 20;
+    constexpr uint8_t BREAK_SIZE_LIMIT = 10;
     if(!FULL_WRITE && std::find_if(evolution_record.begin(), evolution_record.end(),[=](auto record){return std::get<0>(record).first >= BREAK_SIZE_LIMIT;})!=evolution_record.end())
       break;
 

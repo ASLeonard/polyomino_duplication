@@ -761,7 +761,7 @@ def plotTimex(*datas,fit_func=None,renormalise=True,full_renorm=False,row2=False
      f,ax = plt.subplots(N)
      pop = 100
 
-     cmap = cm.get_cmap('copper')
+     cmap = cm.get_cmap('cividis')
 
      
      markers={60:'o',80:'s',100:'x',120:'^',140:'+'}

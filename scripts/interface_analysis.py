@@ -773,7 +773,7 @@ def plotTimex(*datas,fit_func=None,renormalise=True,full_renorm=False,row2=False
      scaler=mpc.LogNorm(min(asyms),max(asyms))
 
      for stage in range(N):
-          
+          mid_data= []
           for data in datas:
                L_scaler = 2-stage
                ##all homomers
@@ -803,6 +803,7 @@ def plotTimex(*datas,fit_func=None,renormalise=True,full_renorm=False,row2=False
                asym_color = cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c)*getGammas()[data.L]/100))
                if fit_func:
                     fit_p = fit_func.fit(data_scaled,floc=0)
+                    print(fit_p)
 
                     ax[stage].plot(np.linspace(0,max(data_scaled),101),fit_func(*fit_p).pdf(np.linspace(0,max(data_scaled),101)),marker=markers[data.L],markevery=.1,c=asym_color,ls='-' if data.dup_rate ==0 else ':')
 
@@ -815,13 +816,15 @@ def plotTimex(*datas,fit_func=None,renormalise=True,full_renorm=False,row2=False
                     BINS=30
                     
                sns.distplot(data_scaled,bins=BINS,ax=ax[stage],kde=False,hist_kws={'histtype':'step','density':1,'lw':2,'alpha':.8,'ls':'-' if data.dup_rate ==0 else '-.'},color=asym_color,label=f'L:{data.L}, S_c:{data.S_c}' if data.dup_rate ==0 else None)#,label=f'{data.dup_rate},{data.S_c}'
-          
+               mid_data.append(data_scaled)
 
 
           ax[stage].set_yscale('log',nonposy='clip')
+          print(anderson_ksamp(mid_data))
      ax[0].legend()
      plt.show(0)
 
+from scipy.stats import anderson_ksamp
 #from matplotlib.sankey import Sankey
 def chartSankey(data):
     for stage in range(max(data.discov_types['stage'])+1):

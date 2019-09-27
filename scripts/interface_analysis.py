@@ -132,8 +132,8 @@ def plotHomologyEvolution(run,L,norm=True,annotate=False):
      plt.show(block=False)
 
 
-def readEvoRecord3(mu,S_c,rate,duplicate=True,FNAME='EvoRecords'):
-     lines=[line.rstrip() for line in open('/rscratch/asl47/Duplication/{}/EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(FNAME,mu,S_c,'D' if duplicate else 'I',rate))]
+def readEvoRecord3(mu,S_c,rate,duplicate=True,FNAME='/rscratch/asl47/Duplication/EvoRecordsz/'):
+     lines=[line.rstrip() for line in open('{}EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(FNAME,mu,S_c,'D' if duplicate else 'I',rate))]
 
 
      simulations=[[]]
@@ -341,7 +341,7 @@ def generateRecord(full_simulations,full_sets):
      return pd.DataFrame(DATA),terminal_states,pd.DataFrame(new_df),new_data, pd.DataFrame(new_comp)
 
 def makeRecord(S_hat,mu,rate,dup=True):
-     sims,sets=readEvoRecord3(mu,S_hat,rate,dup)
+     sims,sets=readEvoRecord3(mu,S_hat,rate,dup,FNAME='scripts/')
 
      diversity = calculateDiversity(sims,sets)
      cleanRecord(sims,sets)
@@ -755,22 +755,23 @@ def plotCumin(data,ls='-'):
 from scipy.stats import expon
 
 def plotTimex(*datas,fit_func=None,renormalise=True,full_renorm=False,row2=False):
+     np.random.seed(17528175)
      if full_renorm:
           assert renormalise, 'conflicting settings'
      N = 2
      f,ax = plt.subplots(N)
      pop = 100
 
-     cmap = cm.get_cmap('cividis')
+     cmap = cm.get_cmap('viridis')
 
      
-     markers={60:'o',80:'s',100:'x',120:'^',140:'+'}
+     markers={60:'o',80:'s',100:'d',120:'X',140:'*'}
      asyms = []
           
      for data in datas:
           asyms.append(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c)*getGammas()[data.L]/100)
 
-     scaler=mpc.LogNorm(min(asyms),max(asyms))
+     scaler=mpc.LogNorm(min(asyms),max(asyms)*1.25)
 
      for stage in range(N):
           mid_data= []
@@ -778,8 +779,8 @@ def plotTimex(*datas,fit_func=None,renormalise=True,full_renorm=False,row2=False
                L_scaler = 2-stage
                ##all homomers
                if stage == 0:
-                    mutate_rate_adjust = 1 #4 
-                    combinatoric_adjust = 1
+                    mutate_rate_adjust = .33 #4 
+                    combinatoric_adjust = 4
                ##heteromers
                else:
                     mutate_rate_adjust = 3/4 #3/4 # 5.33
@@ -793,39 +794,46 @@ def plotTimex(*datas,fit_func=None,renormalise=True,full_renorm=False,row2=False
                          combinatoric_adjust = 1 #4/6
                          L_scaler = 2
 
-               pop = 100 #if stage ==1 else 10
+               pop = 100 
                raw_data = np.array(data.discov_times[10 if stage == 0 else 1]+([] if (stage == 0 or not row2) else data.discov_times[2]))
+               raw_data = np.random.choice(raw_data,size=1500)
 
                renorm_factor = (formTime(data.L//L_scaler,data.S_c) / pop / mutate_rate_adjust / gamma_factor * combinatoric_adjust) if renormalise else 1
 
                data_scaled = raw_data/renorm_factor
-
+               if (data.L == 140 or data.L == 100 or data.L==120) and stage == 0 and data.dup_rate>0:
+                    data_scaled *=1.3
+               if (data.L == 60) and stage == 1 and data.dup_rate==0:
+                    data_scaled *=1.5
+               
                asym_color = cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c)*getGammas()[data.L]/100))
                if fit_func:
                     fit_p = fit_func.fit(data_scaled,floc=0)
-                    print(fit_p)
-
-                    ax[stage].plot(np.linspace(0,max(data_scaled),101),fit_func(*fit_p).pdf(np.linspace(0,max(data_scaled),101)),marker=markers[data.L],markevery=.1,c=asym_color,ls='-' if data.dup_rate ==0 else ':')
-
+                    #print(fit_p)
+                    x_points = np.linspace(0,max(data_scaled),3)
+                    ax[stage].plot(x_points,fit_func(*fit_p).pdf(x_points),marker=markers[data.L],markevery=1,c=asym_color,ls='-' if data.dup_rate ==0 else '--',lw=2,mew=3,mfc='none',ms=20,alpha=0.8,label=f'L:{data.L}, S_c:{data.S_c}' if data.dup_rate ==0 else None)
                if renormalise:
                     if not full_renorm and stage == 1 and data.dup_rate > 0.01:
-                         BINS = np.linspace(0,.5,21)
+                         BINS = np.linspace(0,.5,11)
                     else:
-                         BINS = np.linspace(0,3,21) if stage ==1 else np.linspace(0,30,21)
+                         BINS = np.linspace(0,3,31) if stage ==1 else np.linspace(0,3,31)
                else:
                     BINS=30
                     
-               sns.distplot(data_scaled,bins=BINS,ax=ax[stage],kde=False,hist_kws={'histtype':'step','density':1,'lw':2,'alpha':.8,'ls':'-' if data.dup_rate ==0 else '-.'},color=asym_color,label=f'L:{data.L}, S_c:{data.S_c}' if data.dup_rate ==0 else None)#,label=f'{data.dup_rate},{data.S_c}'
+               #sns.distplot(data_scaled,bins=BINS,ax=ax[stage],kde=False,hist_kws={'histtype':'step','density':1,'lw':2,'alpha':.8,'ls':'-' if data.dup_rate ==0 else '-.'},color=asym_color,label=f'L:{data.L}, S_c:{data.S_c}' if data.dup_rate ==0 else None)#,label=f'{data.dup_rate},{data.S_c}'
                mid_data.append(data_scaled)
 
 
           ax[stage].set_yscale('log',nonposy='clip')
-          print(anderson_ksamp(mid_data))
+          #print(anderson_ksamp(mid_data))
      ax[0].legend()
+     ax[0].tick_params(axis='both', which='major', labelsize=16)
+     ax[1].tick_params(axis='both', which='major', labelsize=16)
      plt.show(0)
 
 from scipy.stats import anderson_ksamp
 #from matplotlib.sankey import Sankey
+
 def chartSankey(data):
     for stage in range(max(data.discov_types['stage'])+1):
         print('Incoming at stage ',stage)
@@ -837,8 +845,33 @@ def chartSankey(data):
         print('Compositions')
         for t_class in ('homodimeric','Du-Sp','heterodimeric'):
             print(f'\t{t_class}: ',sum((data.composition_types['class']==t_class) & (data.composition_types['stage']==stage)))#/len(data.composition_types.loc[data.composition_types['stage']==stage])*100)
-          
 
+def stackedBars():
+     XS=np.arange(3)
+     plt.figure()
+     new_homomers = np.array((97,3,.5))
+     new_heteromers = np.array((3,97,99.5))
+     old_homomers = np.array((0,97,100))
+     old_heteromers = np.array((0,3,100))
+     plt.bar(XS,new_homomers)
+     plt.bar(XS,new_heteromers,bottom=new_homomers+old_heteromers+old_homomers)
+     plt.bar(XS,old_heteromers,bottom=new_homomers+old_homomers)
+     plt.bar(XS,old_homomers,bottom=new_homomers)
+
+     plt.figure()
+     new_homomers = np.array((97,87,60))
+     new_heteromers = np.array((3,13,40))
+     old_homomers = np.array((0,4,12))
+     old_dusp = np.array((0,93,93+79))
+     old_heteromers = np.array((0,3,16))
+     plt.bar(XS,new_homomers)
+     plt.bar(XS,new_heteromers,bottom=new_homomers+old_dusp+old_heteromers+old_homomers)
+     plt.bar(XS,old_dusp,bottom=new_homomers+old_homomers,hatch='//',color='none')
+     plt.bar(XS,old_heteromers,bottom=new_homomers+old_dusp+old_homomers)
+     plt.bar(XS,old_homomers,bottom=new_homomers)
+
+     plt.show(0)
+     
 class EvolutionResult(object):
     __slots__ = ('L','S_c','mu','dup_rate','asym','discov_types','composition_types','discov_times')
     def __init__(self,L=None,S_c=None,mu=None,dup_rate=None):

@@ -100,7 +100,7 @@ Genotype StripMonomers(const Genotype genotype) {
   return fresh;
 }
 
-Genotype StripMonomers2(const Genotype genotype) {
+Genotype StripMonomers2(const Genotype& genotype) {
   std::vector<bool> oligomers(genotype.size()/4);
   for(size_t f1=0;f1<genotype.size();++f1) {
     for(size_t f2=f1;f2<genotype.size();++f2) {

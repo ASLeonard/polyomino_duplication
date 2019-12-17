@@ -4,153 +4,84 @@ if not any(('scripts' in pth for pth in sys.path)):
      sys.path.append('scripts/')
      
 from interface_methods import *
-import numpy as np
 
-from copy import deepcopy
+import numpy as np
+import numpy.ma as ma
+from scipy.stats import binom, expon, anderson_ksamp, linregress
+
 from sys import argv
 from pickle import load,dump
-from multiprocessing import Pool
-from functools import partial
-from collections import defaultdict, Counter
-from itertools import combinations, product, groupby
-from operator import itemgetter
-import math
-import glob
 
-import warnings
+from collections import defaultdict, Counter
+from itertools import product
+
+from scipy.interpolate import UnivariateSpline,InterpolatedUnivariateSpline
+
+import math
+
 
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
-
-from scipy import stats
+from matplotlib.colors import ListedColormap, Normalize, LogNorm, LinearSegmentedColormap
 
 import pandas as pd
 
-#GLOBAL PIDS
-null_pid,init_pid=np.array([0,0],dtype=np.uint8),np.array([1,0],dtype=np.uint8)
-
-
-from matplotlib.colors import ListedColormap, Normalize, LinearSegmentedColormap
-import matplotlib as mpl
-
-
-def readBinaryVectors(fname,run,L):
-     return np.fromfile('/scratch/asl47/Data_Runs/Bulk_Data/{}_Run{}.txt'.format(fname,run),dtype=np.uint16).reshape(-1,L+1)
-
-
-def norm_rows(a):
-     x=np.sum(a)
-     return a if (x==0) else a/x
-
-import matplotlib.colors as mpc
-import numpy.ma as ma
-
 def plotNewHomology(run,L,edges):
-     
-     raw_data = np.fromfile('scripts/{}_Run{}.txt'.format('Zomology',run),dtype=np.uint16).reshape((-1,L+1))
-     data = {}
-     for i in range(4):
-          for j in range(4):
-               data[(i,j)] = raw_data[i*4+j::16]
+    raw_data = np.fromfile(f'Homology_Run{run}.txt',dtype=np.uint16).reshape((-1,L+1))
+    data = {}
+    for I in range(16):
+        data[(I//4,I%4)] = raw_data[I::16]
+            
+    f,axes= plt.subplots(len(edges),1,sharex=True,sharey=True)
+    colors= ['forestgreen','royalblue','orangered','k','k']
+    for i,edge in enumerate(edges):
+        plotSingleHomology(data[edge],L=L,ax=axes[i],user_color=colors[i])
 
-     f,axes= plt.subplots(len(edges),1,sharex=True,sharey=True)
-
-     colors= ['forestgreen','royalblue','orangered']
-     for i,edge in enumerate(edges):
-          plotHomology(data[edge],ax=axes[i],user_color=colors[i])
-          axes[i].axis('off')
-          #return data[edge]
-     plt.show(block=False)
-     
-     return
-     
+    plt.show(block=False)
  
-     
-def avg(myArray, N=2):
-    cum = np.cumsum(myArray,0)
-    result = cum[N-1::N]/float(N)
-    result[1:] = result[1:] - result[:-1]
+def plotSingleHomology(data,L,ax,user_color='red',smooth_window=0):
 
-    remainder = myArray.shape[0] % N
-    if remainder != 0:
-        if remainder < myArray.shape[0]:
-            lastAvg = (cum[-1]-cum[-1-remainder])/float(remainder)
-        else:
-            lastAvg = cum[-1]/float(remainder)
-        result = np.vstack([result, lastAvg])
+    data = np.apply_along_axis(lambda a: a if np.sum(a)==0 else a/np.sum(a),1,data.astype(np.float))
+    if smooth_window:
+        cumulative_smooth = np.cumsum(data,0)
+        data = cumulative_smooth[smooth_window-1::smooth_window]/smooth_window
+        data = data[1:] - data[:-1]
 
-    return result     
+    ##reverse homology so 100% is at top of plot
+    pop_grid= ma.masked_equal(data[:300,::-1].T,0)
 
-def plotHomology(data,L=None, ax=None,user_color='red'):
-     if isinstance(data,int):
-          data = readBinaryVectors('Zomology',data,L)
-
-     show = ax is None
-     if ax is None:
-          f,ax = plt.subplots()
-          
-     data=np.apply_along_axis(norm_rows,1,data.astype(np.float))
-     data = avg(data,20)
-     pop_grid= ma.masked_equal(data[:300].T,0)
-
-     cm = LinearSegmentedColormap.from_list("", ['gainsboro',user_color])
-     px=ax.pcolormesh(pop_grid,cmap=cm,norm=mpc.LogNorm(.005,.25),rasterized=False)
-     #plt.colorbar(px,ax=ax)
-     #vmin=pop_grid[1:].min(), vmax=pop_grid[1:].max())
-     #print(pop_grid[1:].min(),pop_grid[1:].max())
-     #
-     if show:
-          plt.show(block=False)
-     
-
-
-def plotHomologyEvolution(run,L,norm=True,annotate=False):
-
-     f,axes=plt.subplots(2,1,sharex=True)
-     for ax,func in zip(axes,('Zomology','Strengths')):
-
-          data=readBinaryVectors(func,run,L)
-          if norm:
-               data=np.apply_along_axis(norm_rows,1,data.astype(np.float))
-          pop_grid= ma.masked_equal(data.T,0)
-
-          px=ax.pcolormesh(pop_grid,cmap='RdGy',norm=mpc.LogNorm(vmin=pop_grid.min(), vmax=pop_grid.max()))
-
-     axes[0].set_ylabel('Homology')
-     axes[1].set_ylabel('Strength')
-     
-     f.colorbar(px,ax=axes)
-     if annotate:
-          annotations=readEvoRecord(run)
-          ax=axes[0]
-          fixed_pids={tuple(i) for i in getFixedPhenotypes(LoadPIDHistory(run))}
-          for pid,details in annotations.items():
-               alph=1 if pid in fixed_pids else 1
-                    
-               for edge in details[2:]:
-                    ax.scatter(details[0],edge[2],c=[cm.tab20((edge[0]%4*4+edge[1]%4)/16)],alpha=alph)
-     plt.show(block=False)
-
+    cm = LinearSegmentedColormap.from_list("", ['gainsboro',user_color])
+    ax.pcolormesh(pop_grid,cmap=cm,norm=LogNorm(.005,.25),rasterized=False)
 
 def readEvoRecord3(mu,S_c,rate,duplicate=True,FNAME='/rscratch/asl47/Duplication/EvoRecordsz/'):
-     lines=[line.rstrip() for line in open('{}EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(FNAME,mu,S_c,'D' if duplicate else 'I',rate))]
 
+    def getSuperSets(list_of_sets):
+        super_sets=[]
+        for l1 in range(len(list_of_sets)):
+            for l2 in range(l1+1,len(list_of_sets)):
+                if list_of_sets[l1] < list_of_sets[l2]:
+                    break
+            else:
+                super_sets.append(sorted(list_of_sets[l1]))
+        return super_sets
+    
+    lines=[line.rstrip() for line in open('{}EvoRecord_Mu{:.6f}_S{:.6f}_{}{:.6f}.txt'.format(FNAME,mu,S_c,'D' if duplicate else 'I',rate))]
 
-     simulations=[[]]
-     sets=[]
-     for line in lines:
-          if line == '':
-               if simulations[-1]:
-                    simulations.append([])
+    simulations=[[]]
+    sets=[]
+    for line in lines:
+        if line == '':
+            if simulations[-1]:
+                simulations.append([])
                
-          elif ',' in line:
-               sets.append(getSuperSets([{int(i) for i in bm.split()} for bm in line.split(',') if bm]))
+        elif ',' in line:
+            sets.append(getSuperSets([{int(i) for i in bm.split()} for bm in line.split(',') if bm]))
                
-          else:
-               parts=line.split()
-               simulations[-1].append(tuple(int(i) for i in parts[:4])+tuple(tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)))
+        else:
+            parts=line.split()
+            simulations[-1].append(tuple(int(i) for i in parts[:4])+tuple(tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)))
 
-     return simulations[:-1],sets
+    return simulations[:-1],sets
 
 def cleanRecord(full_simulations,full_sets):
 
@@ -200,7 +131,7 @@ def cleanRecord(full_simulations,full_sets):
           if not full_sets[i]:
                full_simulations[i]=None
                full_sets[i]=None
-                        
+use_raw = False          
 def generateRecord(full_simulations,full_sets):
      
      def edgeTopology(ep):
@@ -295,12 +226,12 @@ def generateRecord(full_simulations,full_sets):
                          
                          if edge[0] != edge[1]:
                               if stage >= 1 and edge_pair not in heteromeric_discovery:
-                                   heteromeric_discovery[edge_pair] = (stage,sim[leaf][2]  - previous_generation)
+                                   heteromeric_discovery[edge_pair] = (stage,sim[leaf][2]  - use_raw*previous_generation)
  
 
                          else:
                               if stage == 0 and edge_pair not in homomeric_discovery:
-                                   homomeric_discovery[edge_pair] = (stage,sim[leaf][2]  - previous_generation)
+                                   homomeric_discovery[edge_pair] = (stage,sim[leaf][2]  - use_raw*previous_generation)
                               
 
 
@@ -358,7 +289,7 @@ def loadManyRecords(strengths,rates,mu,L):
      for (S_hat, rate) in product(strengths, rates):
           ((evo_records[(S_hat, rate)], *evo_ratios[(S_hat, rate)]), evo_diversities[(S_hat, rate)]) = makeRecord(S_hat, mu, rate)
           er = EvolutionResult(L,S_hat,mu,rate)
-          er.addData(evo_ratios[(S_hat, rate)][1],evo_ratios[(S_hat, rate)][3],evo_ratios[(S_hat, rate)][2])
+          er.addData(evo_ratios[(S_hat, rate)][1],evo_ratios[(S_hat, rate)][3],evo_ratios[(S_hat, rate)][2],evo_diversities[(S_hat,rate)])
           results.append(er)
           
           
@@ -402,7 +333,7 @@ def plotE2(df,norm=True):
      pop_grid= ma.masked_equal(data,0)
 
      for index,ax in enumerate(axes):
-          px=ax.pcolormesh(pop_grid[index].T,cmap='RdGy',norm=mpc.LogNorm(vmin=pop_grid[index].min(), vmax=pop_grid[index].max()))
+          px=ax.pcolormesh(pop_grid[index].T,cmap='RdGy',norm=LogNorm(vmin=pop_grid[index].min(), vmax=pop_grid[index].max()))
           f.colorbar(px,ax=ax)
      plt.show(block=False)
      
@@ -493,15 +424,7 @@ def addRandomExpectations(ax,L_I):
      for sign in (-1,1):
           ax.axhline(L_I/2+sign*np.sqrt(L_I)/2,c='#666666',ls='--',lw=.75,zorder=0)
 
-def getSuperSets(list_of_sets):
-     super_sets=[]
-     for l1 in range(len(list_of_sets)):
-          for l2 in range(l1+1,len(list_of_sets)):
-               if list_of_sets[l1] < list_of_sets[l2]:
-                    break
-          else:
-               super_sets.append(sorted(list_of_sets[l1]))
-     return super_sets
+
 
 
 def doNow(rec):
@@ -541,7 +464,10 @@ def reconstruct(data):
 def plotDiversity(data_dict):
      f,axes = plt.subplots(2)
      slopes=[]
-     for (S_hat, rate), diversity in data_dict.items():
+     for data in data_dict:#(S_hat, rate), diversity in data_dict.items():
+         diversity = data.div
+         S_hat= data.S_c
+         rate = data.dup_rate
          slopes.append(plotSingleDiversity(axes, diversity, S_hat,rate))
 
      df = pd.DataFrame(slopes)
@@ -577,7 +503,7 @@ def plotSingleDiversity(axes,data,S,rate):
           y_err=np.std(discovs[...,index],axis=0,ddof=1)
           col=axes[index].plot(rescaled_X,y,lw=2,label=S,ls=rate_lines[rate],color=colours[S])[0].get_color()
           y_low=np.maximum(y-y_err,0)
-          slope_points.append({'S':S,'rate':rate,'slope': stats.linregress(rescaled_X[3*y.size//4:], y[3*y.size//4:])[0]})
+          slope_points.append({'S':S,'rate':rate,'slope': linregress(rescaled_X[3*y.size//4:], y[3*y.size//4:])[0]})
           #print('{}, {} -> slope: {:.3f}'.format(S,rate, stats.linregress(rescaled_X, y)[0]))
         
           #axes[index].plot(y_low,c=col,ls='--')
@@ -637,7 +563,7 @@ def Hom(run,g,c):
          
 
      
-from scipy.stats import binom
+
 def getExpectedInteractionTime(L_I,S_c):
      binomial=binom(L_I,.5)
      thresh=math.floor(S_c*L_I)-1
@@ -645,45 +571,8 @@ def getExpectedInteractionTime(L_I,S_c):
 ##baseline is .001 mutation
 
 
-import sys
 
 
-def plotRidge(df,df2):
-     df['L']=0
-     df2['L']=1
-     df = pd.concat([df,df2])
-     sns.set(style="white", rc={"axes.facecolor": (0, 0, 0, 0)})
-
-     plot_code='occurence'
-     df = df.loc[df['class']=='Du-Sp']
-     
-     # Initialize the FacetGrid object
-     pal = sns.cubehelix_palette(10, rot=-.25, light=.7)
-     g = sns.FacetGrid(df, row=plot_code, hue='L', aspect=10, height=1,sharey=False)#, palette=pal
-     
-     # Draw the densities in a few steps
-     #g.map(sns.kdeplot, "homology", clip_on=False, shade=True, alpha=1, lw=1.5, bw=.1)
-     g.map(sns.kdeplot, "homology", clip_on=False, lw=2, bw=.1)
-     g.map(plt.axhline, y=0, lw=2, clip_on=False)
-     g.map(plt.axvline, x=64, lw=2,color='dimgrey',ls='--',clip_on=False)
-     
-     
-     # Define and use a simple function to label the plot in axes coordinates
-     def label(x, color, label):
-          ax = plt.gca()
-          ax.text(0, .2, label, fontweight="bold", color=color,
-                  ha="left", va="center", transform=ax.transAxes)
-          
-
-     g.map(label, "occurence")
-     # Set the subplots to overlap
-     g.fig.subplots_adjust(hspace=-.1)
-     
-     # Remove axes details that don't play well with overlap
-     g.set_titles("")
-     g.set(yticks=[])
-     g.despine(bottom=True, left=True)
-     plt.show(block=False)
 
 
 def plotImbalance(data1,data2):
@@ -752,9 +641,12 @@ def plotCumin(data,ls='-'):
      plt.show(0)
 
 #from itertools import cycle
-from scipy.stats import expon
 
-def plotTimex(*datas,fit_func=None,renormalise=True,full_renorm=False,row2=False):
+
+def plotTimex(*datas,fit_func=expon,renormalise=True,full_renorm=False,row2=False):
+     
+     c_thresh=0.75
+
      np.random.seed(17528175)
      if full_renorm:
           assert renormalise, 'conflicting settings'
@@ -762,20 +654,22 @@ def plotTimex(*datas,fit_func=None,renormalise=True,full_renorm=False,row2=False
      f,ax = plt.subplots(N)
      pop = 100
 
-     cmap = cm.get_cmap('viridis')
+     
 
      
      markers={60:'o',80:'s',100:'d',120:'X',140:'*'}
      asyms = []
           
      for data in datas:
-          asyms.append(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c)*getGammas()[data.L]/100)
+          
+          asyms.append(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c))#*getGammas()[data.L]/100)
+     print(asyms)
 
-     scaler=mpc.LogNorm(min(asyms),max(asyms)*1.25)
+     scaler=LogNorm(min(asyms),max(asyms)*2)
 
      for stage in range(N):
           mid_data= []
-          for data in datas:
+          for asym_val, data in zip(asyms,datas):
                L_scaler = 2-stage
                ##all homomers
                if stage == 0:
@@ -789,9 +683,9 @@ def plotTimex(*datas,fit_func=None,renormalise=True,full_renorm=False,row2=False
                gamma_factor = 1
                if full_renorm:
                     if stage == 1 and data.dup_rate > .01:
-                         mutate_rate_adjust = 3/4
+                         #mutate_rate_adjust = 3/4
                          gamma_factor = getGammas()[data.L]/100
-                         combinatoric_adjust = 1 #4/6
+                         #combinatoric_adjust = 1 #4/6
                          L_scaler = 2
 
                pop = 100 
@@ -805,13 +699,18 @@ def plotTimex(*datas,fit_func=None,renormalise=True,full_renorm=False,row2=False
                     data_scaled *=1.3
                if (data.L == 60) and stage == 1 and data.dup_rate==0:
                     data_scaled *=1.5
+
+
+
+                    
+               cmap = cm.get_cmap('Blues_r' if data.dup_rate>0 else 'Oranges_r')
+               asym_color = cmap(scaler(asym_val))
                
-               asym_color = cmap(scaler(formTime(data.L,data.S_c)/formTime(data.L//2,data.S_c)*getGammas()[data.L]/100))
                if fit_func:
                     fit_p = fit_func.fit(data_scaled,floc=0)
                     #print(fit_p)
-                    x_points = np.linspace(0,max(data_scaled),3)
-                    ax[stage].plot(x_points,fit_func(*fit_p).pdf(x_points),marker=markers[data.L],markevery=1,c=asym_color,ls='-' if data.dup_rate ==0 else '--',lw=2,mew=3,mfc='none',ms=20,alpha=0.8,label=f'L:{data.L}, S_c:{data.S_c}' if data.dup_rate ==0 else None)
+                    x_points = np.linspace(0,max(data_scaled),300)
+                    ax[stage].plot(x_points,fit_func(*fit_p).pdf(x_points),marker=markers[data.L],markevery=[0,-1],c=asym_color,ls='-' if data.dup_rate ==0 else '--',lw=4,mew=5,mfc='none',ms=30,alpha=1,label=f'L:{data.L}, S_c:{data.S_c}' if data.dup_rate !=-1 else None)
                if renormalise:
                     if not full_renorm and stage == 1 and data.dup_rate > 0.01:
                          BINS = np.linspace(0,.5,11)
@@ -820,7 +719,7 @@ def plotTimex(*datas,fit_func=None,renormalise=True,full_renorm=False,row2=False
                else:
                     BINS=30
                     
-               #sns.distplot(data_scaled,bins=BINS,ax=ax[stage],kde=False,hist_kws={'histtype':'step','density':1,'lw':2,'alpha':.8,'ls':'-' if data.dup_rate ==0 else '-.'},color=asym_color,label=f'L:{data.L}, S_c:{data.S_c}' if data.dup_rate ==0 else None)#,label=f'{data.dup_rate},{data.S_c}'
+               #sns.distplot(data_scaled,bins=BINS,ax=ax[stage],kde=False,hist_kws={'cumulative':True,'histtype':'step','density':1,'lw':2,'alpha':.8,'ls':'-' if data.dup_rate ==0 else '-.'},color=asym_color,label=f'L:{data.L}, S_c:{data.S_c}' if data.dup_rate ==0 else None)#,label=f'{data.dup_rate},{data.S_c}'
                mid_data.append(data_scaled)
 
 
@@ -831,7 +730,7 @@ def plotTimex(*datas,fit_func=None,renormalise=True,full_renorm=False,row2=False
      ax[1].tick_params(axis='both', which='major', labelsize=16)
      plt.show(0)
 
-from scipy.stats import anderson_ksamp
+
 #from matplotlib.sankey import Sankey
 
 def chartSankey(data):
@@ -840,12 +739,12 @@ def chartSankey(data):
 
         for t_class in ('homodimeric','heterodimeric'):
             print(f'\t{t_class}: ',sum((data.discov_types['class']==t_class) & (data.discov_types['stage']==stage)))#/len(data.composition_types.loc[data.composition_types['stage']==stage])*100)
-
           
         print('Compositions')
         for t_class in ('homodimeric','Du-Sp','heterodimeric'):
             print(f'\t{t_class}: ',sum((data.composition_types['class']==t_class) & (data.composition_types['stage']==stage)))#/len(data.composition_types.loc[data.composition_types['stage']==stage])*100)
-
+    return [sum((data.composition_types['class']==t_class) & (data.composition_types['stage']==2)) for t_class in ('Du-Sp','heterodimeric')]
+            
 def stackedBars():
      XS=np.arange(3)
      plt.figure()
@@ -873,7 +772,7 @@ def stackedBars():
      plt.show(0)
      
 class EvolutionResult(object):
-    __slots__ = ('L','S_c','mu','dup_rate','asym','discov_types','composition_types','discov_times')
+    __slots__ = ('L','S_c','mu','dup_rate','asym','discov_types','composition_types','discov_times','div')
     def __init__(self,L=None,S_c=None,mu=None,dup_rate=None):
         self.L = L
         self.S_c = S_c
@@ -881,10 +780,11 @@ class EvolutionResult(object):
         self.dup_rate = dup_rate
         self.asym = formTime(L,S_c)/formTime(L//2,S_c)
          
-    def addData(self,discov_types, composition_types, discov_times):
+    def addData(self,discov_types, composition_types, discov_times,div):
         self.discov_types = discov_types
         self.composition_types = composition_types
         self.discov_times = discov_times
+        self.div = div
      
     def __repr__(self):
         return f'Evolution result for \'L:{self.L}, S_c:{self.S_c}, Dup: {self.dup_rate}\''
@@ -899,3 +799,75 @@ def getRes():
           er, err, ed, (QQ)= loadManyRecords(*d)
           res.extend(QQ)
      return res
+
+
+
+          
+        
+def plotComplexityEvolution(data,renormalise_t0=False,interaction_sets=(10,),N_simulatins=None):
+
+    def deWeight(times,init=1):
+        heights = list(np.linspace(1/len(times),init,len(times)))
+        unique_times = []
+        for index,time in enumerate(reversed(times)):
+            if time not in unique_times:
+                unique_times.append(time)
+            else:
+                heights.pop(len(times)-index-1)
+        return unique_times[::-1],np.array(heights)
+
+    f, (ax,ax2) = plt.subplots(2)
+
+    for index, c in zip(range(0,len(data),2),('g','m','r','b','c')):
+        spline_data = []
+        time_window = None
+
+        for sub_I in (1,0):
+            raw_times = np.array(sum((data[index+sub_I].discov_times[slice_] for slice_ in interaction_sets),[]))
+            time_points, complexity_avg = deWeight(sorted(raw_times),N_simulations or len(interaction_sets))            
+            ax.plot(time_points, complexity_avg, ls='--' if sub_I else '-', c=c, label=f'{data[index+sub_I].L},{data[index+sub_I].dup_rate}',alpha=1)
+
+            ## generate spline information for complexity gap
+            complexity_spline = InterpolatedUnivariateSpline(time_points, complexity_avg)
+            spline_data.append(complexity_spline)
+
+            ##TODO, what is the ideal slice point here?
+            time_window = np.linspace(1,time_points[np.argmax(complexity_avg>=3)],250)
+            #,complexity_avg[-1]
+        
+        new_start=formTime(data[index+sub_I].L//2,data[index+sub_I].S_c)/75
+        if renormalise_t0:
+            time_window = time_window[time_window>=new_start] - new_start
+        else:
+            ax2.axvline(new_start,c=c)
+
+        complexity_gap = spline_data[0](time_window)-spline_data[1](time_window)
+        max_gap = np.argmax(complexity_gap)
+        ax.plot([time_window[max_gap]]*2,[spline_data[0](time_window[max_gap]),spline_data[1](time_window[max_gap])],mfc='none',mec=c,marker='o',ms=12,c=c)
+
+        time_window = time_window[:max_gap+1]
+        ax2.plot(time_window,spline_data[0](time_window)-spline_data[1](time_window), c=c)
+
+    ax.set_xscale('log')
+    ax2.set_xscale('log')
+    ax.legend()
+    plt.show(block=False)
+
+def plotCompositionBreakdown():
+     hets = np.array([[2752,  813],[2234, 1020], [2771,  627], [2427,  960], [3205,  321]],dtype=np.float64)
+
+     scale = np.sum(hets,axis=1)/3500
+     print(scale)
+     hets = (hets.T/scale).T/3500
+     
+     asyms= np.array([32.89107322,  8.17588437, 17.44973057,  8.19035052, 38.25540118])
+
+     for L,vals in zip([60,80,100,120,140],hets):
+          for val,sgn in zip(vals,[1,-1]):
+               plt.plot([sgn*val,0][::sgn],[L]*2)
+          print(L,vals,sum(vals))
+
+     plt.plot([0,0],[50,150])
+     plt.show(0)
+
+

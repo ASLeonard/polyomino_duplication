@@ -39,8 +39,8 @@ void InteractionMetrics();
 
 void EvolutionRunner();
 
-void EvolveHomology(std::string run_details,bool self);
-
+void EvolveHomology(std::string& run_details,bool self);
+void EvolvePopulation(const std::string& run_details);
 void EvolvingHomology();
 
 

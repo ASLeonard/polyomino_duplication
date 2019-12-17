@@ -1,12 +1,19 @@
 #include "duplication_simulator.hpp"
 #include <iostream>
+
 #ifndef FULL_WRITE
 #define FULL_WRITE 0
 #endif
 
+#ifndef ROOT_FILE_PATH
+#define ROOT_FILE_PATH ""
+#endif
+
+
 constexpr bool BINARY_WRITE_FILES=false;
 bool KILL_BACK_MUTATIONS=false;
-const std::string file_base_path="//scratch//asl47//Data_Runs//Bulk_Data//";
+const std::string file_base_path=ROOT_FILE_PATH;
+
 const std::string shared_base_path="//rscratch//asl47//Duplication//EvoRecords//";
 const std::string shared_base_path2="//rscratch//asl47//Duplication//Metrics//";
 const std::string shared_base_path3="";
@@ -151,7 +158,7 @@ uint32_t DecayDup(uint8_t gap) {
 
 }
 
-void EvolveHomology(std::string run_details,bool self) {
+void EvolveHomology(std::string& run_details,bool self) {
   std::string file_simulation_details=run_details+".BIN";
   std::ofstream fout_homology(file_base_path+"Bomology"+file_simulation_details,std::ios::binary); 
 
@@ -288,7 +295,7 @@ void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::vector<std::tuple<Phen
 }
 
 
-void EvolvePopulation(std::string run_details) {
+void EvolvePopulation(const std::string& run_details) {
   std::string file_simulation_details=run_details+".txt";
     
   //
@@ -297,17 +304,16 @@ void EvolvePopulation(std::string run_details) {
   
   std::string fname_phenotype(file_base_path+"PhenotypeTable"+file_simulation_details);
 
-  std::ofstream fout_selection_history, fout_phenotype_IDs, fout_size, fout_interactions2, fout_strength, fout_zomology;
+  std::ofstream fout_selection_history, fout_phenotype_IDs, fout_size, fout_interactions, fout_strength, fout_homology;
 
-  
   if(FULL_WRITE) {
     fout_selection_history.open(file_base_path+"Selections"+file_simulation_details,std::ios::binary);
     fout_phenotype_IDs.open(file_base_path+"PIDs"+file_simulation_details,std::ios::out );
     fout_size.open(file_base_path+"Size"+file_simulation_details,std::ios::out);
-    fout_interactions2.open(file_base_path+"Binteractions"+file_simulation_details,std::ios::out);
+    fout_interactions.open(file_base_path+"Interactions"+file_simulation_details,std::ios::out);
 
     fout_strength.open(file_base_path+"Strengths"+file_simulation_details,std::ios::binary);
-    fout_zomology.open(file_base_path+"Zomology"+file_simulation_details,std::ios::binary);
+    fout_homology.open(file_base_path+"Homology"+file_simulation_details,std::ios::binary);
     
   }
 
@@ -413,13 +419,13 @@ void EvolvePopulation(std::string run_details) {
       
       if(FULL_WRITE) {
         for(auto& kv : pid_map) 
-          fout_phenotype_IDs<<+kv.first.first<<" "<<+kv.first.second<<" ";
+          fout_phenotype_IDs << +kv.first.first << " " << +kv.first.second << " ";
         for(auto edge : InterfaceAssembly::GetActiveInterfaces(evolving_genotype.active_space))
-          fout_interactions2<<+edge.first.first<<" "<<+edge.first.second<<" ";
-        fout_interactions2<<",";
+          fout_interactions << +edge.first.first << " " << +edge.first.second << " ";
+        fout_interactions << ",";
       
-        fout_phenotype_IDs<<",";
-        fout_size<<evolving_genotype.active_space.size()/4<<" ";
+        fout_phenotype_IDs << ",";
+        fout_size << evolving_genotype.active_space.size()/4 << " ";
       }
       
     } /*! END GENOTYPE LOOP */
@@ -439,12 +445,12 @@ void EvolvePopulation(std::string run_details) {
 
     if(FULL_WRITE) {
       BinaryWriter(fout_selection_history,reproducing_selection);
-      fout_phenotype_IDs<<"\n";
-      fout_size<<"\n";
-      fout_interactions2<<"\n";
+      fout_phenotype_IDs << "\n";
+      fout_size << "\n";
+      fout_interactions << "\n";
       for(int i =0; i<4;++i)
         for(int j=0; j<4; ++j)
-          BinaryWriter(fout_zomology,binary_homology[std::make_pair(i,j)]);
+          BinaryWriter(fout_homology,binary_homology[std::make_pair(i,j)]);
       BinaryWriter(fout_strength,binary_strengths);
     }
 

@@ -1,7 +1,7 @@
 MAKEFLAGS+="-j $(nproc)"
 
 #Compiler and Linker
-CXX         := g++-9
+CXX         := g++-8
 
 #The Target Binary Program
 Du_TARGET   := NEW_DuplicationEvolution
@@ -30,6 +30,10 @@ endif
 ifdef ILen
 CXXFLAGS += -DGCC_INTERFACE_LENGTH=$(ILen)
 Du_TARGET := $(Du_TARGET)_L$(ILen)
+endif
+
+ifdef ROOT_FILE_PATH
+CXXFLAGS += -DROOT_FILE_PATH=$(ROOT_FILE_PATH)
 endif
 
 ifdef FW

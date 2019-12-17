@@ -49,9 +49,6 @@ def stepVariance(Q):
     
 ##solution
 def steadyStates(L,S_c):
-    s_hats = np.linspace(0,1,L+1)
-    N = floor(L*(1-S_c))+1
-     
     return getSteadyStates(makeTransitionMatrix(L,S_c)[1:,1:])[1]
 
 def formTime(L,S_c):
@@ -126,10 +123,6 @@ def plotEMP(L,S_c,normed=False,ax=None):
 
     print(sum(np.all(sym_PD.rvs(size=2) < asym_PD.rvs(size=1)) for _ in range(100000))/100000)
 
-
- 
-        
-    #plt.yscale('log')
     plt.show(0)
     
 def calcGamma(L,S_c):
@@ -141,3 +134,14 @@ def calcGamma(L,S_c):
 
 dd = [(60,.83),(80,.75),(100,.74),(120,.7),(140,.714)]
 
+def MutualExclusion(n,S_c,L_I=64):
+    return (binom(L_I/2,.5).cdf(int(ceil(S_c*L_I/2))-1)**n)*(binom(L_I,.5).cdf(int(ceil(S_c*L_I))-1)**(n*(n-1)/2.))
+
+def plotExclusion(S_c,Ls,col='orangered'):
+    xs=np.linspace(1,500,500)
+    for L in Ls:
+        mut=MutualExclusion(xs,S_c,L)
+        plt.plot(xs,mut,c=col,marker='h',ls='')
+    #plt.plot(xs[:-1],-np.diff(mut),c='royalblue')
+    #print -np.diff(mut),sum(-np.diff(mut))
+    plt.show(block=False)

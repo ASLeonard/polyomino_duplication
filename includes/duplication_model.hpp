@@ -44,7 +44,7 @@ public:
 };
 
 
-Genotype StripMonomers(const Genotype genotype);
+Genotype StripMonomers2(const Genotype& genotype);
 namespace simulation_params
 {
   inline uint8_t model_type=1,n_tiles=1;
@@ -64,11 +64,9 @@ namespace interface_model
   
 }
 
-void EvolutionRunner();
+
 void RandomiseGenotype(Genotype& genotype);
 void SplitActiveNeutralSpaces(Genotype& active, Genotype& neutral);
-void EvolvePopulation(std::string run_details);
-
 
 Genotype GenerateTargetGraph(std::map<uint8_t,std::vector<uint8_t>> edge_map,uint8_t graph_size);
 void EnsureNeutralDisconnections(Genotype& genotype);

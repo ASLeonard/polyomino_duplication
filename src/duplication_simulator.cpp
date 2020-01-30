@@ -1,5 +1,6 @@
 #include "duplication_simulator.hpp"
 #include <iostream>
+#include <cstring>
 
 #ifndef FULL_WRITE
 #define FULL_WRITE 0
@@ -14,34 +15,111 @@
 
 const std::string file_base_path = STRINGIZE_VALUE_OF(ROOT_FILE_PATH);
 
+void InteractionMetrics(const bool formation=true, const bool decay=true, const bool gamma_factor=true) {
+  const std::string file_end = std::to_string(InterfaceAssembly::binding_threshold) + ".BIN";
+  const uint32_t N_runs = simulation_params::independent_trials;
+  std::vector<uint32_t> res_S(N_runs), res_A(N_runs);
 
+  if(formation) {
+    std::cout << "running for form\n";
+    std::ofstream fout_form(file_base_path + "Formation_" + file_end, std::ios::binary);
+#pragma omp parallel for schedule(dynamic) 
+    for(uint32_t r=0;r < N_runs;++r) {  
+      res_S[r] = InteractionDynamics(interface_size+1, true, false);
+      res_A[r] = InteractionDynamics(interface_size+1, false, false);
+    }    
+    BinaryWriter(fout_form,res_S);
+    BinaryWriter(fout_form,res_A);
+  }
 
-void InteractionMetrics() {
-  const uint32_t N_runs=simulation_params::independent_trials;
-  
-  std::ofstream f_out(file_base_path+"Discovery_"+std::to_string(InterfaceAssembly::binding_threshold)+".BIN", std::ios::binary);
-  std::vector<uint32_t> res_S(N_runs),res_A(N_runs);
-/*
+  if(decay) {
+    std::cout << "running for decay\n";
+    if(InterfaceAssembly::samming_threshold % 2)
+      std::cout << "The chosen strength threshold doesn't correspond to a self-interaction state, beware" << std::endl;
+    std::ofstream fout_decay(file_base_path + "Decay_" + file_end, std::ios::binary);
+    for(uint8_t gap = 0; gap <= InterfaceAssembly::samming_threshold; ++gap) {
 #pragma omp parallel for schedule(dynamic) 
-  for(uint32_t r=0;r < N_runs;++r) {
-    res_S[r]= DiscoverInteraction(true,false);
-    res_A[r]= DiscoverInteraction(false,false);
-  }    
-  BinaryWriter(f_out,res_S);
-  BinaryWriter(f_out,res_A); 
-  return;
-    */
-  std::ofstream f_out2(file_base_path+"Decay_"+std::to_string(InterfaceAssembly::binding_threshold)+".BIN", std::ios::binary);
-  for(uint8_t gap=0;gap<=InterfaceAssembly::samming_threshold/2;++gap) {
-#pragma omp parallel for schedule(dynamic) 
-    for(uint32_t r=0;r < N_runs;++r) {
-      //if(gap%2==0 && InterfaceAssembly::samming_threshold%2==0)
-      //  res_S[r] = DecayDup(true,gap/2);
-      res_A[r]= DecayDup(gap);
+      for(uint32_t r=0;r < N_runs;++r) {
+        if(gap % 2 == 0)
+          res_S[r] = InteractionDynamics(gap/2, true, false);
+        res_A[r] = InteractionDynamics(gap, false, false);
+      }
+    BinaryWriter(fout_decay,res_S);
+    BinaryWriter(fout_decay,res_A);
     }
-    //BinaryWriter(f_out2,res_S);
-    BinaryWriter(f_out2,res_A);
-  }  
+  }
+
+  if(gamma_factor) {
+    std::cout << "running for gamma\n";
+    std::ofstream fout_decay(file_base_path + "Gamma_" + file_end, std::ios::binary);
+    std::vector<int8_t> res_D(N_runs);
+    for(uint8_t gap = 0; gap <= InterfaceAssembly::samming_threshold; gap+=2) {
+#pragma omp parallel for schedule(dynamic) 
+      for(uint32_t r=0;r < N_runs;++r)
+        res_D[r] = DuplicatedHeteromericDecayRatio(gap/2);
+    BinaryWriter(fout_decay,res_D);
+    }
+  }
+}
+
+Genotype generateInterfacePair(const uint8_t gap, const bool self_interaction, const bool duplicated) {
+  //randomly initialise genotype, and if duplicated have both entries match
+  Genotype genotype(2);
+  InterfaceAssembly::RandomiseGenotype(genotype);
+  genotype[duplicated] = genotype[0];
+  
+  //if gap < interface_size, the genotype will be interacting
+  if(gap < interface_size) {
+    genotype[1] = interface_model::ReverseBits(~genotype[0]);
+    //if self-interacting, make 2nd half on the binary string complement the first half
+    if(self_interaction)
+      for(size_t n = 0; n < interface_size/2; ++n)
+        genotype[0][interface_size-1-n] = ~genotype[0][n];
+    
+    //slightly mess up perfect interaction according to the gap parameter
+    std::vector<uint8_t> bits(interface_size/(self_interaction ? 2 : 1));
+    std::iota(bits.begin(),bits.end(),0);
+    std::shuffle(bits.begin(),bits.end(),RNG_Engine);
+    for(uint8_t b = 0; b < gap; ++b)
+      genotype[0].flip(bits[b]);
+  }
+  return genotype;  
+}
+
+uint32_t InteractionDynamics(const uint8_t gap, const bool self_interaction, const bool duplicated) {
+  //if formation (i.e. gap > interface_size), condition is to be over strength, otherwise equal to or below
+  auto comp_operator = [gap] (uint8_t a, uint8_t b) { return gap > interface_size ? a <= b : a > b;};
+  auto genotype = generateInterfacePair(gap,self_interaction,duplicated);
+
+  //continuously mutate genotype until condition is reached, and record the time taken
+  std::uniform_int_distribution<uint8_t> index_dist(0, interface_size-1);
+  for(uint32_t generation = 1; generation <= simulation_params::generation_limit; ++generation) {
+    genotype[0].flip(index_dist(RNG_Engine));
+    if(comp_operator(interface_model::SammingDistance(genotype[0],genotype[!self_interaction]),InterfaceAssembly::samming_threshold))
+      return generation;
+  }
+  return 0;
+}
+
+int8_t DuplicatedHeteromericDecayRatio(const uint8_t gap) {
+  auto genotype = generateInterfacePair(gap,true,true);
+  genotype[1] = genotype[0];
+
+  std::uniform_int_distribution<uint8_t> index_dist(0, interface_size-1);
+  std::bernoulli_distribution B_d(0.5);
+
+  //mutate genotype until either both homomerics are lost (return 1), heteromeric is lost (return 0), or limit reached (return -1)
+  for(uint32_t generation = 1; generation <= simulation_params::generation_limit; ++generation) {
+      genotype[B_d(RNG_Engine)].flip(index_dist(RNG_Engine));
+
+    if(interface_model::SammingDistance(genotype[0],genotype[1]) <= InterfaceAssembly::samming_threshold) {
+      if(interface_model::SammingDistance(genotype[0],genotype[0]) > InterfaceAssembly::samming_threshold && interface_model::SammingDistance(genotype[1],genotype[1]) > InterfaceAssembly::samming_threshold)
+        return 1;
+    }
+    else
+      return 0;
+  }
+  return -1;
 }
 
 void EvolvingHomology() {
@@ -55,7 +133,6 @@ void EvolvingHomology() {
 
       std::uniform_int_distribution<uint8_t> dis(0, interface_size-1);
       std::uniform_int_distribution<uint8_t> dis2(0, 7);
-
     
       Genotype g(8);
       InterfaceAssembly::RandomiseGenotype(g);
@@ -80,78 +157,6 @@ void EvolvingHomology() {
     }
   }
     
-}
-
-uint32_t DiscoverInteraction(bool self_interaction,bool duplicated) {
-  Genotype genotype(2);
-  InterfaceAssembly::RandomiseGenotype(genotype);
-  genotype[duplicated]=genotype[0];
-
-  std::uniform_int_distribution<size_t> index_dist(0, interface_size-1);
-  for(uint32_t generation=1;generation<=simulation_params::generation_limit;++generation) {
-    genotype[0].flip(index_dist(RNG_Engine));
-    if(interface_model::SammingDistance(genotype[0],genotype[!self_interaction])<=InterfaceAssembly::samming_threshold)
-      return generation;
-  }
-
-  return 0;
-}
-
-uint32_t DecayInteraction(bool self_interaction, uint8_t gap) {
-  interface_type geno1=InterfaceAssembly::GenRandomSite(), geno2=interface_model::ReverseBits(~geno1);
-  if(self_interaction)
-    for(size_t n=0;n<interface_size/2;++n)
-      geno1[interface_size-1-n]=~geno1[n];
-
-  std::uniform_int_distribution<uint8_t> dis(0, interface_size-1);
-  std::vector<uint8_t> bits(interface_size/(self_interaction?2:1));
-  std::iota(bits.begin(),bits.end(),0);
-  std::shuffle(bits.begin(),bits.end(),RNG_Engine);
-
-  for(uint8_t b=0; b<gap;++b)
-    geno1.flip(bits[b]);
-
-  for(uint32_t generation=1;generation<=simulation_params::generation_limit;++generation) {
-    geno1.flip(dis(RNG_Engine));
-    if(interface_model::SammingDistance(geno1,self_interaction?geno1:geno2)>InterfaceAssembly::samming_threshold)
-      return generation;
-  }
-  
-  return 0;
-
-}
-
-uint32_t DecayDup(uint8_t gap) {
-  interface_type geno1=InterfaceAssembly::GenRandomSite(), geno2=interface_model::ReverseBits(~geno1);
-  for(size_t n=0;n<interface_size/2;++n)
-    geno1[interface_size-1-n]=~geno1[n];
-
-  std::uniform_int_distribution<uint8_t> dis(0, interface_size-1);
-  std::vector<uint8_t> bits(interface_size/2);
-  std::iota(bits.begin(),bits.end(),0);
-  std::shuffle(bits.begin(),bits.end(),RNG_Engine);
-  std::bernoulli_distribution B_d(0.5);
-
-  for(uint8_t b=0; b<gap;++b)
-    geno1.flip(bits[b]);
-  geno2 = geno1;
-
-  for(uint32_t generation=1;generation<=simulation_params::generation_limit;++generation) {
-    if(B_d(RNG_Engine))
-      geno1.flip(dis(RNG_Engine));
-    else
-      geno2.flip(dis(RNG_Engine));
-
-    if(interface_model::SammingDistance(geno1,geno2)<=InterfaceAssembly::samming_threshold) {
-      if(interface_model::SammingDistance(geno1,geno1)>InterfaceAssembly::samming_threshold && interface_model::SammingDistance(geno2,geno2)>InterfaceAssembly::samming_threshold)
-        return 1;
-  }
-    else
-      return 0;
-  }
-  
-  return -1;
-
 }
 
 void EvolveHomology(std::string& run_details,bool self) {
@@ -445,17 +450,16 @@ int main(int argc, char* argv[]) {
 
   run_option=argv[1][1];
   SetRuntimeConfigurations(argc,argv);
-  Genotype g(4);
   
   switch(run_option) {
-  case 'B':
-    EvolvingHomology();
-    break;
   case 'E':
     EvolutionRunner();
     break;
-  case 'M':
-    InteractionMetrics();
+  case 'M':    
+    if(strlen(argv[1]) == 5)
+      InteractionMetrics(argv[1][2]=='1',argv[1][3]=='1',argv[1][4]=='1');
+    else
+      std::cout << "Wrong number of arguments!\nNeed to specify (T/F) for formation, decay, and gamma metrics.\nFormat is -M[1/0][1/0][1/0]." << std::endl;
     break;
   case '?':
     InterfaceAssembly::PrintBindingStrengths();
@@ -489,7 +493,6 @@ void SetRuntimeConfigurations(int argc, char* argv[]) {
 
       case 'M': InterfaceAssembly::mutation_rate=std::stod(argv[arg+1]);break;
       case 'J': InterfaceAssembly::duplication_rate=std::stod(argv[arg+1]);break;
-      case 'K': InterfaceAssembly::insertion_rate=std::stod(argv[arg+1]);break;
       case 'L': InterfaceAssembly::deletion_rate=std::stod(argv[arg+1]);break;
       case 'Y': InterfaceAssembly::binding_threshold=std::stod(argv[arg+1]);break;
       case 'T': InterfaceAssembly::temperature=std::stod(argv[arg+1]);break;

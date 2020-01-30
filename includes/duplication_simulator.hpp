@@ -26,6 +26,11 @@ struct PopulationGenotype {
   PopulationGenotype() : neutral_space(simulation_params::n_tiles*4+4) {InterfaceAssembly::RandomiseGenotype(neutral_space); active_space.insert(active_space.end(),neutral_space.begin(),neutral_space.begin()+4); neutral_space.erase(neutral_space.begin(),neutral_space.begin()+4);};
 };
 
+void InteractionMetrics(const bool formation, const bool decay, const bool gamma_factor);
+Genotype generateInterfacePair(const uint8_t gap, const bool self_interaction, const bool duplicated);
+uint32_t InteractionDynamics(const uint8_t gap, const bool self_interaction, const bool duplicated);
+int8_t DuplicatedHeteromericDecayRatio(const uint8_t gap);
+
 //Associated functions to track evolutionary histories
 void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::vector<std::tuple<Phenotype_ID,uint32_t, uint16_t, PhenotypeEdgeInformation > >& Homology_tracker,uint32_t generation, uint16_t pop_index);
 
@@ -35,13 +40,13 @@ void EvolutionRunner();
 void EvolvePopulation(const std::string& run_details);
 
 //?
-uint32_t DiscoverInteraction(bool self_interaction,bool duplication=false); 
-uint32_t DecayInteraction(bool self_interaction, uint8_t gap);
-uint32_t DecayDup(uint8_t gap);
-void InteractionMetrics();
+//uint32_t DiscoverInteraction(bool self_interaction,bool duplication=false); 
+//uint32_t DecayInteraction(bool self_interaction, uint8_t gap);
+//uint32_t DecayDup(uint8_t gap);
+//void InteractionMetrics();
 
-void EvolveHomology(std::string& run_details,bool self);
-void EvolvingHomology();
+//void EvolveHomology(std::string& run_details,bool self);
+//void EvolvingHomology();
 
 void SetRuntimeConfigurations(int argc, char* argv[]);
 

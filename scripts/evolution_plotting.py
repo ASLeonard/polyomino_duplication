@@ -172,3 +172,15 @@ def plotTimex(*datas,fit_func=expon,renormalise=True,full_renorm=False,row2=Fals
     ax[0].tick_params(axis='both', which='major', labelsize=16)
     ax[1].tick_params(axis='both', which='major', labelsize=16)
     plt.show(block=False)
+
+def printTransitionTable(data):
+    for stage in range(max(data.discov_types['stage'])+1):
+        print('Incoming at stage ',stage)
+
+        for t_class in ('homodimeric','heterodimeric'):
+            print(f'\t{t_class}: ',sum((data.discov_types['class']==t_class) & (data.discov_types['stage']==stage)))#/len(data.composition_types.loc[data.composition_types['stage']==stage])*100)
+          
+        print('Compositions')
+        for t_class in ('homodimeric','Du-Sp','heterodimeric'):
+            print(f'\t{t_class}: ',sum((data.composition_types['class']==t_class) & (data.composition_types['stage']==stage)))#/len(data.composition_types.loc[data.composition_types['stage']==stage])*100)
+    return [sum((data.composition_types['class']==t_class) & (data.composition_types['stage']==2)) for t_class in ('Du-Sp','heterodimeric')]

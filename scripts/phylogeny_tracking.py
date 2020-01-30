@@ -256,3 +256,11 @@ class EvolutionResult(object):
 
 def getGammas():
      return {60:1.71, 80:3.32, 100: 3.25, 120:4.46, 140:3.74}
+
+def getRes():
+     loadD = (([.83],[0,.05],.00417,60),([.75],[0,.05],.003125,80), ([.74],[0,0.05],.0025,100), ([.7],[0,.05],.0021,120),([.714],[0,.05],.001786,140))
+     res=[]
+     for d in loadD:
+          er, err, ed, (QQ)= loadManyRecords(*d)
+          res.extend(QQ)
+     return res

@@ -43,7 +43,7 @@ public:
   static void PrintBindingStrengths();
 
   inline static double temperature = 0, binding_threshold = 1;
-  inline static double mutation_rate = 0, duplication_rate = 0, insertion_rate = 0, deletion_rate = 0;
+  inline static double mutation_rate = 0, duplication_rate = 0, deletion_rate = 0;
   inline static uint8_t samming_threshold = 0;
 };
 

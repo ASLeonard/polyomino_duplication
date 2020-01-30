@@ -4,7 +4,7 @@ MAKEFLAGS+="-j $(nproc)"
 CXX         := g++-8
 
 #The Target Binary Program
-Du_TARGET   := NEW_DuplicationEvolution
+Du_TARGET   := DuplicationEvolution
 
 
 #The Directories, Source, Includes, Objects, Binary and Resources
@@ -22,22 +22,22 @@ OBJEXT      := o
 #Flags, Libraries and Includes
 CXXFLAGS    := -std=gnu++2a -Wall -Wextra -pedantic -pipe -march=haswell -no-pie $(cmdflag)
 ifndef DEBUG
-CXXFLAGS += -O3 -fopenmp -flto -flto-partition=none -ffunction-sections -fdata-sections
+	CXXFLAGS += -O3 -fopenmp -flto -flto-partition=none -ffunction-sections -fdata-sections
 else
-CXXFLAGS += -g3 -O0
+	CXXFLAGS += -g3 -O0
 endif
 
 ifdef ILen
-CXXFLAGS += -DGCC_INTERFACE_LENGTH=$(ILen)
-Du_TARGET := $(Du_TARGET)_L$(ILen)
+	CXXFLAGS += -DGCC_INTERFACE_LENGTH=$(ILen)
+	Du_TARGET := $(Du_TARGET)_L$(ILen)
 endif
 
 ifdef ROOT_FILE_PATH
-CXXFLAGS += -DROOT_FILE_PATH=$(ROOT_FILE_PATH)
+	CXXFLAGS += -DROOT_FILE_PATH=$(ROOT_FILE_PATH)
 endif
 
 ifdef FW
-CXXFLAGS += -DFULL_WRITE=1
+	CXXFLAGS += -DFULL_WRITE=$(FW)
 endif
 
 INC         := -I$(INCDIR) -I$(LIBDIR)/$(INCDIR)

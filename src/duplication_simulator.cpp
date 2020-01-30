@@ -5,25 +5,29 @@
 #define FULL_WRITE 0
 #endif
 
+#define STRINGIZE(x) #x
+#define STRINGIZE_VALUE_OF(x) STRINGIZE(x)
+
 #ifndef ROOT_FILE_PATH
-#define ROOT_FILE_PATH ""
+#define ROOT_FILE_PATH
 #endif
+
+
 
 
 constexpr bool BINARY_WRITE_FILES=false;
 bool KILL_BACK_MUTATIONS=false;
-const std::string file_base_path=ROOT_FILE_PATH;
 
-const std::string shared_base_path="//rscratch//asl47//Duplication//EvoRecords//";
-const std::string shared_base_path2="//rscratch//asl47//Duplication//Metrics//";
-const std::string shared_base_path3="";
-const std::map<Phenotype_ID,uint8_t> phen_stages{{{0,0},0},{{10,0},4},{{1,0},1},{{2,0},2},{{4,0},2},{{4,1},3},{{8,0},3},{{12,0},4},{{16,0},4}};
+
+const std::string file_base_path = STRINGIZE_VALUE_OF(ROOT_FILE_PATH);
+
+
 
 
 void InteractionMetrics() {
   const uint32_t N_runs=simulation_params::independent_trials;
   
-  std::ofstream f_out(shared_base_path2+"Discovery_"+std::to_string(InterfaceAssembly::binding_threshold)+".BIN", std::ios::binary);
+  std::ofstream f_out(file_base_path+"Discovery_"+std::to_string(InterfaceAssembly::binding_threshold)+".BIN", std::ios::binary);
   std::vector<uint32_t> res_S(N_runs),res_A(N_runs);
 /*
 #pragma omp parallel for schedule(dynamic) 
@@ -35,7 +39,7 @@ void InteractionMetrics() {
   BinaryWriter(f_out,res_A); 
   return;
     */
-  std::ofstream f_out2(shared_base_path3+"Decay_"+std::to_string(InterfaceAssembly::binding_threshold)+".BIN", std::ios::binary);
+  std::ofstream f_out2(file_base_path+"Decay_"+std::to_string(InterfaceAssembly::binding_threshold)+".BIN", std::ios::binary);
   for(uint8_t gap=0;gap<=InterfaceAssembly::samming_threshold/2;++gap) {
 #pragma omp parallel for schedule(dynamic) 
     for(uint32_t r=0;r < N_runs;++r) {
@@ -273,7 +277,6 @@ void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::vector<std::tuple<Phen
     //this pid has survived long enough to be meaningful
     if(std::accumulate(pid_record.begin(),pid_record.end(),0)==PG.PID_depth) {
 
-
       //if this pid is not in the individuals lineage, add it and update global record
       if(PG.PID_lineage.find(pid)==PG.PID_lineage.end() && (PG.PID_lineage.empty() || pid.first>PG.PID_lineage.crbegin()->first)) {
         PG.PID_lineage.emplace(pid);
@@ -297,10 +300,9 @@ void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::vector<std::tuple<Phen
 
 void EvolvePopulation(const std::string& run_details) {
   std::string file_simulation_details=run_details+".txt";
-    
-  //
 
-  std::ofstream fout_evo(shared_base_path+"EvoRecord_Mu"+std::to_string(InterfaceAssembly::mutation_rate)+"_S"+std::to_string(InterfaceAssembly::binding_threshold)+"_D" + std::to_string(InterfaceAssembly::duplication_rate)+".txt",std::ios::app );
+
+  std::ofstream fout_evo(file_base_path+"EvoRecord_Mu"+std::to_string(InterfaceAssembly::mutation_rate)+"_S"+std::to_string(InterfaceAssembly::binding_threshold)+"_D" + std::to_string(InterfaceAssembly::duplication_rate)+".txt",std::ios::app );
   
   std::string fname_phenotype(file_base_path+"PhenotypeTable"+file_simulation_details);
 
@@ -316,8 +318,6 @@ void EvolvePopulation(const std::string& run_details) {
     fout_homology.open(file_base_path+"Homology"+file_simulation_details,std::ios::binary);
     
   }
-
-  
   
 
   std::vector<std::tuple<Phenotype_ID, uint32_t,uint16_t, PhenotypeEdgeInformation > > evolution_record;
@@ -336,24 +336,9 @@ void EvolvePopulation(const std::string& run_details) {
   FitnessPhenotypeTable pt = FitnessPhenotypeTable();
   pt.fit_func=[](double s) {return s;};
 
-   
-  if(simulation_params::model_type==17) {
-    pt.known_phenotypes[1].emplace_back(Phenotype(1,1,{1}));
-    pt.known_phenotypes[2].emplace_back(Phenotype(2,1,{1,3}));
-    pt.known_phenotypes[2].emplace_back(Phenotype(2,1,{1,5}));
-    pt.phenotype_fitnesses[1].emplace_back(1);
-    pt.phenotype_fitnesses[2].emplace_back(4);
-    pt.phenotype_fitnesses[2].emplace_back(4);
-    pt.FIXED_TABLE=true;
-  }
-  
-  
-  //Genotype assembly_genotype;
-  //std::vector<uint8_t> pIDs(simulation_params::population_size*2);
-  //Phenotype_ID prev_ev;
+
 
   for(uint32_t generation=0;generation<simulation_params::generation_limit;++generation) { /*! MAIN EVOLUTION LOOP */
-
 
     uint16_t nth_genotype=0;
     for(PopulationGenotype& evolving_genotype : evolving_population) { /*! GENOTYPE LOOP */
@@ -369,17 +354,12 @@ void EvolvePopulation(const std::string& run_details) {
       
       InterfaceAssembly::Mutation(evolving_genotype.active_space,1,1,1);
 
-      //evolving_genotype.subunits=evolving_genotype.genotype;
 
       evolving_genotype.pid_interactions.clear();
 
       SplitActiveNeutralSpaces(evolving_genotype.active_space,evolving_genotype.neutral_space);
       auto pid_map=interface_model::PolyominoAssemblyOutcome(evolving_genotype.active_space,&pt,evolving_genotype.pid_interactions);
       
-      
-      
-      
-      //evolving_genotype.subunits=assembly_genotype;
       switch(pid_map.begin()->first.first) {
       case 255:
         population_fitnesses[nth_genotype]=0;
@@ -388,18 +368,8 @@ void EvolvePopulation(const std::string& run_details) {
         population_fitnesses[nth_genotype]=1;
         break;
       default:
-        //if(evolving_genotype.genotype.size()>(8*pid_map.rbegin()->first.first))
-        //  population_fitnesses[nth_genotype]=0; //oversized genotype
-        //else
         population_fitnesses[nth_genotype]=pt.GenotypeFitness(pid_map);
-      }
-
-      //Add pids to genotype
-      //evolving_genotype.pids.clear();
-      //for(auto& kv : pid_map)
-      //  evolving_genotype.pids.emplace_back(kv.first);
-      
-      
+      }      
 
       UpdatePhylogenyTrackers(evolving_genotype,evolution_record,generation,nth_genotype);
       if(!evolving_genotype.PID_hierarchy.empty())

@@ -6,15 +6,18 @@ bin/*
 
 #
 Ignore any pyc from imports
-scripts/__pycache__
-PDB/__pycache__
+
+*/__pycache__
 scripts/*.pyc
+scripts/*.so
+scripts/*.sh
+
 PDB/*.pyc
 PDB/*dict
 PDB/*csv
 PDB/*ND
-scripts/*.so
-scripts/*.sh
+
+
 
 */*.pdf
 */*.json

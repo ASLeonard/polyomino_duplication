@@ -6,20 +6,25 @@
 #include "core_phenotype.hpp"
 #include "core_evolution.hpp"
 
+//compiler optional argument to compile with a fixed length, otherwise defaults to 64
 #ifndef GCC_INTERFACE_LENGTH
 #define GCC_INTERFACE_LENGTH 64
 #endif
 
-constexpr uint8_t interface_size=GCC_INTERFACE_LENGTH;
+constexpr uint8_t interface_size = GCC_INTERFACE_LENGTH;
 using interface_type = std::bitset<interface_size>;
-
 using Genotype = std::vector<interface_type>;
 
+//global parameters
+namespace simulation_params
+{
+  inline uint8_t n_tiles = 1;
+}
 
-
+//specialised implementation of polyomino assembly model (from polyomino_core repository)
 class InterfaceAssembly : public PolyominoAssembly<InterfaceAssembly> {
 
-  protected:
+protected:
   inline static std::array<double,interface_size+1> binding_probabilities{};
   
 public:
@@ -33,44 +38,27 @@ public:
   };
   
   static double InteractionMatrix(const interface_type, const interface_type);
-  static size_t Mutation(Genotype& genotype, bool duplication, bool insertion, bool deletion);
+  static void Mutation(Genotype& genotype);
   static void SetBindingStrengths();
   static void PrintBindingStrengths();
 
-  inline static double temperature=0,binding_threshold=1;
-  inline static double mutation_rate=0,duplication_rate=0,insertion_rate=0,deletion_rate=0;
-  inline static uint8_t samming_threshold=0;
-  
+  inline static double temperature = 0, binding_threshold = 1;
+  inline static double mutation_rate = 0, duplication_rate = 0, insertion_rate = 0, deletion_rate = 0;
+  inline static uint8_t samming_threshold = 0;
 };
-
-
-Genotype StripMonomers2(const Genotype& genotype);
-namespace simulation_params
-{
-  inline uint8_t model_type=1,n_tiles=1;
-  inline double homologous_threshold=.1;
-}
-
-std::vector<uint8_t> CalculateHomology(const Genotype& genotype);
-bool IsHomologous(const Genotype& genotype, const uint8_t T1, const uint8_t T2);
 
 namespace interface_model
 {   
   interface_type ReverseBits(interface_type v);
   uint8_t SammingDistance(interface_type face1,interface_type face2);
 
-  /* ASSEMBLY */
-  std::map<Phenotype_ID,uint16_t> PolyominoAssemblyOutcome(Genotype& binary_genome, FitnessPhenotypeTable* pt, std::map<Phenotype_ID, std::map<InteractionPair,uint16_t> >& pid_interactions);//std::map<Phenotype_ID, std::set<InteractionPair>>& pid_interactions);
-  
+  /*MAIN ASSEMBLY IMPLEMENTATION*/
+  std::map<Phenotype_ID,uint16_t> PolyominoAssemblyOutcome(Genotype& binary_genome, FitnessPhenotypeTable* pt, std::map<Phenotype_ID, std::map<InteractionPair,uint16_t> >& pid_interactions);
 }
 
+std::vector<uint8_t> CalculateHomology(const Genotype& genotype);
 
-void RandomiseGenotype(Genotype& genotype);
+//Associated functions to maintain genotypes during evolution
+Genotype StripMonomers(const Genotype& genotype);
 void SplitActiveNeutralSpaces(Genotype& active, Genotype& neutral);
-
-Genotype GenerateTargetGraph(std::map<uint8_t,std::vector<uint8_t>> edge_map,uint8_t graph_size);
 void EnsureNeutralDisconnections(Genotype& genotype);
-
-size_t GenotypeDuplication(Genotype& genotype);
-void GenotypeInsertion(Genotype& genotype);
-size_t GenotypeDeletion(Genotype& genotype);

@@ -18,7 +18,7 @@ def runnerCore(executable_name,L,S_c,generations,full_args,verbose):
     print(f'Attempting simulation for L: {L} S_c: {S_c}')
 
     if verbose:
-        print(f'about to run following command:\n{executable_name} -E {full_args}')
+        print(f'about to run following command:\n\t{executable_name} -E {full_args}')
 
     subprocess.run(f'{executable_name} -E {full_args}',shell=True)
     print('Simulation complete')
@@ -48,7 +48,7 @@ def main():
         print('Error in compiling, try and fix it?')
         return
 
-    default_args = f'-N 3 -P 100 -B 20 -X .33 -F 1 -A 1 -T 10'
+    default_args = f'-N 3 -P 100 -B 20 -X .33 -F 1 -T 10'
 
     full_args = default_args + f' -M {args.Mutation} -D {args.Runs} -Y {args.Strength} -G {args.Generations}'
 

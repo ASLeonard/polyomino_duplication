@@ -12,15 +12,7 @@
 #define ROOT_FILE_PATH
 #endif
 
-
-
-
-constexpr bool BINARY_WRITE_FILES=false;
-bool KILL_BACK_MUTATIONS=false;
-
-
 const std::string file_base_path = STRINGIZE_VALUE_OF(ROOT_FILE_PATH);
-
 
 
 
@@ -66,7 +58,7 @@ void EvolvingHomology() {
 
     
       Genotype g(8);
-      RandomiseGenotype(g);
+      InterfaceAssembly::RandomiseGenotype(g);
       if(self) {
         for(size_t n=0;n<interface_size/2;++n)
           g[0][interface_size-n]=~g[0][n];
@@ -92,7 +84,7 @@ void EvolvingHomology() {
 
 uint32_t DiscoverInteraction(bool self_interaction,bool duplicated) {
   Genotype genotype(2);
-  RandomiseGenotype(genotype);
+  InterfaceAssembly::RandomiseGenotype(genotype);
   genotype[duplicated]=genotype[0];
 
   std::uniform_int_distribution<size_t> index_dist(0, interface_size-1);
@@ -171,7 +163,7 @@ void EvolveHomology(std::string& run_details,bool self) {
   reproduced_population.resize(simulation_params::population_size);
 
   Genotype g(8);
-  RandomiseGenotype(g);
+  InterfaceAssembly::RandomiseGenotype(g);
   if(!self) {
     for(size_t n=0;n<interface_size/2;++n)
       g[0][interface_size-n-1]=~g[0][n];
@@ -224,15 +216,11 @@ void EvolveHomology(std::string& run_details,bool self) {
 void EvolutionRunner() {
   /*!PYTHON INFORMATION*/
   Phenotype::DETERMINISM_LEVEL=1;
-  KILL_BACK_MUTATIONS=true;
 
   const uint16_t N_runs=simulation_params::independent_trials;
 #pragma omp parallel for schedule(dynamic) 
-  for(uint16_t r=0;r < N_runs;++r) {
-   
+  for(uint16_t r=0;r < N_runs;++r)
     EvolvePopulation("_Run"+std::to_string(r+simulation_params::run_offset));
-    
-  }
 }
 
 void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::vector<std::tuple<Phenotype_ID,uint32_t, uint16_t, PhenotypeEdgeInformation > >& Homology_tracker,uint32_t generation, uint16_t pop_index) {
@@ -301,7 +289,6 @@ void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::vector<std::tuple<Phen
 void EvolvePopulation(const std::string& run_details) {
   std::string file_simulation_details=run_details+".txt";
 
-
   std::ofstream fout_evo(file_base_path+"EvoRecord_Mu"+std::to_string(InterfaceAssembly::mutation_rate)+"_S"+std::to_string(InterfaceAssembly::binding_threshold)+"_D" + std::to_string(InterfaceAssembly::duplication_rate)+".txt",std::ios::app );
   
   std::string fname_phenotype(file_base_path+"PhenotypeTable"+file_simulation_details);
@@ -313,12 +300,9 @@ void EvolvePopulation(const std::string& run_details) {
     fout_phenotype_IDs.open(file_base_path+"PIDs"+file_simulation_details,std::ios::out );
     fout_size.open(file_base_path+"Size"+file_simulation_details,std::ios::out);
     fout_interactions.open(file_base_path+"Interactions"+file_simulation_details,std::ios::out);
-
     fout_strength.open(file_base_path+"Strengths"+file_simulation_details,std::ios::binary);
     fout_homology.open(file_base_path+"Homology"+file_simulation_details,std::ios::binary);
-    
-  }
-  
+  }  
 
   std::vector<std::tuple<Phenotype_ID, uint32_t,uint16_t, PhenotypeEdgeInformation > > evolution_record;
   std::set< std::vector<size_t> > global_sets;
@@ -327,7 +311,8 @@ void EvolvePopulation(const std::string& run_details) {
   std::vector<PopulationGenotype> evolving_population(simulation_params::population_size),reproduced_population;
   reproduced_population.resize(simulation_params::population_size);
   std::vector<uint16_t> binary_homologies(interface_size+1), binary_strengths(interface_size+1);
-  std::map<std::pair<int,int>, std::vector<uint16_t>> binary_homology;//(interface_size+1)
+  std::map<std::pair<int,int>, std::vector<uint16_t>> binary_homology;
+
   for(int i =0; i<4;++i)
     for(int j=0; j<4; ++j)
       binary_homology[std::make_pair(i,j)] = binary_homologies;
@@ -335,7 +320,6 @@ void EvolvePopulation(const std::string& run_details) {
   
   FitnessPhenotypeTable pt = FitnessPhenotypeTable();
   pt.fit_func=[](double s) {return s;};
-
 
 
   for(uint32_t generation=0;generation<simulation_params::generation_limit;++generation) { /*! MAIN EVOLUTION LOOP */
@@ -352,8 +336,7 @@ void EvolvePopulation(const std::string& run_details) {
         return;
       }
       
-      InterfaceAssembly::Mutation(evolving_genotype.active_space,1,1,1);
-
+      InterfaceAssembly::Mutation(evolving_genotype.active_space);
 
       evolving_genotype.pid_interactions.clear();
 
@@ -445,8 +428,6 @@ void EvolvePopulation(const std::string& run_details) {
   fout_evo << "\n\n";
 
   }
-
-  //pt.PrintTable(fname_phenotype);
   
 }
 
@@ -476,11 +457,6 @@ int main(int argc, char* argv[]) {
   case 'M':
     InteractionMetrics();
     break;
-  case 'X':
-    GenotypeInsertion(g);
-    for(auto x : g)
-      std::cout<<x<<"\n";
-    break;
   case '?':
     InterfaceAssembly::PrintBindingStrengths();
     break;
@@ -506,19 +482,11 @@ void SetRuntimeConfigurations(int argc, char* argv[]) {
       case 'G': simulation_params::generation_limit=std::stoi(argv[arg+1]);break;
       case 'D': simulation_params::independent_trials=std::stoi(argv[arg+1]);break;
       case 'V': simulation_params::run_offset=std::stoi(argv[arg+1]);break;
-      case 'A': simulation_params::model_type=std::stoi(argv[arg+1]);break; 
-      case 'H': simulation_params::homologous_threshold=std::stod(argv[arg+1]);break;
         
       case 'B': FitnessPhenotypeTable::phenotype_builds=std::stoi(argv[arg+1]);break;
       case 'X': FitnessPhenotypeTable::UND_threshold=std::stod(argv[arg+1]);break;
       case 'F': FitnessPhenotypeTable::fitness_factor=std::stod(argv[arg+1]);break;
 
-        /*! run configurations */
-      
-
-        /*! simulation specific */
-        
-        //DONE IN INIT FILE
       case 'M': InterfaceAssembly::mutation_rate=std::stod(argv[arg+1]);break;
       case 'J': InterfaceAssembly::duplication_rate=std::stod(argv[arg+1]);break;
       case 'K': InterfaceAssembly::insertion_rate=std::stod(argv[arg+1]);break;
@@ -526,8 +494,6 @@ void SetRuntimeConfigurations(int argc, char* argv[]) {
       case 'Y': InterfaceAssembly::binding_threshold=std::stod(argv[arg+1]);break;
       case 'T': InterfaceAssembly::temperature=std::stod(argv[arg+1]);break;
         
-        //case 'Q': FitnessPhenotypeTable::fitness_jump=std::stod(argv[arg+1]);break;
-
       default: std::cout<<"Unknown Parameter Flag: "<<argv[arg][1]<<std::endl;
       }
     }

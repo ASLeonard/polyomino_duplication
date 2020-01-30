@@ -10,7 +10,7 @@ def test_compiler(capsys):
 
 def test_data_generation(capsys):
     executable_name = f'bin/DuplicationEvolution_L40'
-    default_args = f'-N 3 -P 100 -B 10 -X .33 -F 1 -A 1 -T 10'
+    default_args = f'-N 3 -P 100 -B 10 -X .33 -F 1 -T 10'
     full_args = default_args + f' -M 0.005 -D 1 -Y .75 -G 250'
 
     with capsys.disabled():

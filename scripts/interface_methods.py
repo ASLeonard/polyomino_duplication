@@ -420,34 +420,34 @@ def plotExp(I_size,ax=None):
      return params
 
 def fitA(Ls,As):
-     def fit_func2(L,a,b):
-          return (a/(L**.5)+b)
+    def fit_func2(L,a,b):
+         return (a/(L**.5)+b)
+    print(Ls.shape,As.shape)
+    params,_ =  scipy.optimize.curve_fit(fit_func2,  Ls,  As, maxfev=20000)
+    plt.plot(Ls,As)
+    print(params)
+    plt.plot(Ls,fit_func2(Ls,*params),ls='--',lw=2)
+    plt.xscale('log')
+    plt.show(block=False)
 
-     print(Ls.shape,As.shape)
-     params,_ =  scipy.optimize.curve_fit(fit_func2,  Ls,  As, maxfev=20000)
-     plt.plot(Ls,As)
-     print(params)
-     plt.plot(Ls,fit_func2(Ls,*params),ls='--',lw=2)
-     plt.xscale('log')
-     plt.show(block=False)
 def Comp(L):
-     f,ax=plt.subplots()
-     xs=plotExp(L,ax)
-     ax2=ax.twinx()
-     #ax2.plot(xs,L**(L**xs),'c.-')
-     #ax2.plot(xs,L**(L**xs),'c.-')
-     ax2.set_yscale('log')
-     #ax.plot(xs,scaling(L,xs),'r:')
+    f,ax=plt.subplots()
+    xs=plotExp(L,ax)
+    ax2=ax.twinx()
+    #ax2.plot(xs,L**(L**xs),'c.-')
+    #ax2.plot(xs,L**(L**xs),'c.-')
+    ax2.set_yscale('log')
+    #ax.plot(xs,scaling(L,xs),'r:')
 
 def scaling(L,s):
-     return np.exp((-.086*np.log(L)+.54) * np.exp((1.6*np.log(L)-1.13)*s,dtype=np.float128),dtype=np.float128)
+    return np.exp((-.086*np.log(L)+.54) * np.exp((1.6*np.log(L)-1.13)*s,dtype=np.float128),dtype=np.float128)
      
 
 def drop_time(L,S_c):
-     ##fix rounding error
-     times = expected_steps_fundamental(drop_matrix(L,S_c))[1:]
-     distrs = __getSteadyStates(__matrix(L,S_c)[1:,1:])[1]
-     return times.dot(distrs)
+    ##fix rounding error
+    times = expected_steps_fundamental(drop_matrix(L,S_c))[1:]
+    distrs = __getSteadyStates(__matrix(L,S_c)[1:,1:])[1]
+    return times.dot(distrs)
 
 def expected_steps_fundamental(Q):
     I = np.identity(Q.shape[0])
@@ -469,11 +469,11 @@ def RandomWalk(I_size=64,n_steps=1000,phi=0.5,S_star=0.6,analytic=False):
      if analytic:
           analytic_states=__getSteadyStates(__matrix(I_size,S_star)[1:,1:])[1]
           return sum(s_hats[-N:]*analytic_states) if analytic==1 else analytic_states
-     
+
      states=np.array([1]+[0]*(N-1),dtype=float)
      progressive_states=[sum(s_hats[-N:]*states)]
 
-     for i in range(n_steps):
+     for _ in range(n_steps):
           states=__updateStates(states,s_hats[-N:],phi)
           progressive_states.append(sum(s_hats[-N:]*states))
      return progressive_states
@@ -486,7 +486,7 @@ def __updateStates(states,val,phi=0.5):
                states_updating[i]+=states[i-1]*phi*(1-val[i-1])
           if i!=states.shape[0]-1:
                states_updating[i]+=states[i+1]*phi*val[i+1]
-     return states_updating/sum(states_updating)     
+     return states_updating/sum(states_updating)
 
 def __getSteadyStates(matrix):
      eigval,eigvec=LA.eig(matrix)

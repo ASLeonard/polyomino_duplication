@@ -657,13 +657,20 @@ if __name__ == "__main__":
 def MutualExclusion(n,S_c,L_I=64):
      return (binom(L_I/2,.5).cdf(int(round(S_c*L_I/2))-1)**n)*(binom(L_I,.5).cdf(int(S_c*L_I)-1)**(n*(n-1)/2.))
 
-def plotExclusion(S_c,col='orangered'):
-     xs=np.linspace(1,500,500)
-     mut=MutualExclusion(xs,S_c)
-     plt.plot(xs,mut,c=col,marker='h',ls='')
+def plotExclusion(L,S_c,col='orangered',marker='h'):
+     xs=np.linspace(1,25,25)
+     mut=MutualExclusion(xs,S_c,L)
+     plt.scatter(xs,mut,edgecolor=col,marker=marker,lw=2,facecolor='None')
      #plt.plot(xs[:-1],-np.diff(mut),c='royalblue')
      #print -np.diff(mut),sum(-np.diff(mut))
      plt.show(block=False)
+
+def plotX():
+     for s in (.625,.6875,.75):
+          plotExclusion(32,s,marker='h')
+          plotExclusion(64,s,marker='d')
+     plt.yscale('log')
+     plt.show(0)
      
 """RANDOM THEORY SECTION """
     

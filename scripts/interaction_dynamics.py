@@ -65,13 +65,17 @@ def dropTime(L,S_c):
     distrs = getSteadyStates(makeTransitionMatrix(L,S_c)[1:,1:])[1]
     return times.dot(distrs)
 
+def MutualExclusion(n,S_c,L_I=64):
+    return (binom(L_I/2,.5).cdf(int(ceil(S_c*L_I/2))-1)**n)*(binom(L_I,.5).cdf(int(ceil(S_c*L_I))-1)**(n*(n-1)/2.))
+
+
 ##approx
 def scaler(L,S):
-     return np.exp((.7/np.sqrt(L)+.08)*L**(1.35*S))
+    return np.exp((.7/np.sqrt(L)+.08)*L**(1.35*S))
 
 
 def loadBinary(S,fname='Discovery',shape=(-1)):
-     return np.fromfile('{}_{:.6f}.BIN'.format(fname,S),dtype=np.uint32).reshape(shape)
+    return np.fromfile('{}_{:.6f}.BIN'.format(fname,S),dtype=np.uint32).reshape(shape)
 ## testing
 
 def makeDropDistribution(loaded_data,L,S_c):
@@ -131,8 +135,7 @@ def calcGamma(L,S_c):
 
 dd = [(60,.83),(80,.75),(100,.74),(120,.7),(140,.714)]
 
-def MutualExclusion(n,S_c,L_I=64):
-    return (binom(L_I/2,.5).cdf(int(ceil(S_c*L_I/2))-1)**n)*(binom(L_I,.5).cdf(int(ceil(S_c*L_I))-1)**(n*(n-1)/2.))
+
 
 def plotExclusion(S_c,Ls,col='orangered'):
     xs=np.linspace(1,500,500)

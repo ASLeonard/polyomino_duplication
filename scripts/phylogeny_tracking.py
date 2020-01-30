@@ -1,20 +1,12 @@
-import sys
-#add local paths to load custom methods
-if not any(('scripts' in pth for pth in sys.path)):
-    sys.path.append('scripts/')
-
-
-from interface_methods import *
-from interface_formation import formTime
+from scripts.interface_methods import *
+from scripts.interface_formation import formTime
 from itertools import product
 from collections import defaultdict
 import pandas as pd
 import random
 
-def readEvolutionRecord(mu,S_c,rate,duplicate=True,FNAME='/rscratch/asl47/Duplication/EvoRecords/'):
-
+def readEvolutionRecord(mu,S_c,rate,duplicate=True,FNAME=''):
     simulations, sets = [[]], []
-
     for line in open(f'{FNAME}EvoRecord_Mu{mu:.6f}_S{S_c:.6f}_D{rate:.6f}.txt'):
         #blank link, add new entry if previous entry has data
         if line == '\n':
@@ -212,19 +204,18 @@ def generateRecord(full_simulations,full_sets,use_raw,samples):
     return pd.DataFrame(formed_interactions),pd.DataFrame(evolved_interactions),new_data
 
 
-def makeRecord(S_hat,mu,rate,use_raw,samples):
-    sims,sets=readEvolutionRecord(mu,S_hat,rate,FNAME='scripts/')
+def makeRecord(S_hat,mu,rate,use_raw,samples,FNAME='scripts/'):
+    sims,sets=readEvolutionRecord(mu,S_hat,rate,FNAME=FNAME)
 
     cleanRecord(sims,sets)
     
     return generateRecord(filter(None,sims),filter(None,sets),use_raw,samples)
 
-def loadManyRecords(strengths,rates,mu,L,use_raw):
+def loadManyRecords(strengths,rates,mu,L,use_raw,FNAME='scripts/'):
     results = []
-     
     for (S_hat, rate) in product(strengths, rates):
         er = EvolutionResult(L,S_hat,mu,rate)
-        er.addData(*makeRecord(S_hat, mu, rate,use_raw))
+        er.addData(*makeRecord(S_hat, mu, rate,use_raw,0,FNAME=FNAME))
         results.append(er)
           
     if len(results) == 1:

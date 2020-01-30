@@ -1,5 +1,4 @@
 import subprocess
-import sys
 import os
 import argparse
 
@@ -40,7 +39,6 @@ def main():
     parser.add_argument('--recompile', dest='recompile', default=False, action='store_true')
 
     parser.set_defaults(Runs=1,pathway='')
-    
     args = parser.parse_args()
 
     executable_name = f'bin/DuplicationEvolution_L{args.Length}'
@@ -56,7 +54,7 @@ def main():
 
     for index, dup_rate in enumerate(args.dup_rates):
         offset = index*args.Runs
-        runnerCore(executable_name,args.Length,args.Strength,args.Generations,full_args + f' -J {dup_rate} -L {dup_rate} -V {offset}',args.verbose)    
+        runnerCore(executable_name,args.Length,args.Strength,args.Generations,full_args + f' -J {dup_rate} -L {dup_rate} -V {offset}',args.verbose)
 
 if __name__ == '__main__':
     main()

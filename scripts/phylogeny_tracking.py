@@ -1,9 +1,11 @@
-from scripts.interface_methods import *
 from scripts.interface_formation import formTime
 from itertools import product
 from collections import defaultdict
 import pandas as pd
 import random
+
+#from scripts.evolution_plotting import plotComplexityEvolution, plotTimex
+#rr= loadManyRecords([.83],[0,0.05],.00417,80,0)
 
 def readEvolutionRecord(mu,S_c,rate,duplicate=True,FNAME=''):
     simulations, sets = [[]], []
@@ -91,7 +93,6 @@ def generateRecord(full_simulations,full_sets,use_raw,samples):
     new_data = defaultdict(list)
     formed_interactions, evolved_interactions = [], []
 
-    
     fail_rate = [0,0,0]
     
     if samples:
@@ -252,106 +253,6 @@ class EvolutionResult(object):
      
     def __repr__(self):
         return f'Evolution result for \'L:{self.L}, S_c:{self.S_c}, Dup: {self.dup_rate}\''
-
-
-
-import matplotlib.pyplot as plt
-
-def deWeight(times,init=1):
-     heights = list(np.linspace(1/len(times),init,len(times)))
-     unique_times = []
-     for index,time in enumerate(reversed(times)):
-          if time not in unique_times:
-               unique_times.append(time)
-          else:
-               heights.pop(len(times)-index-1)
-     return np.array(unique_times[::-1]),np.array(heights)
-          
-     
-from scipy.signal import savgol_filter
-def plotDiv2(res,reslice=False,times=(10,)):
-     f,(ax,ax2) = plt.subplots(2,sharex=True)
-     gg=getGammas()
-     for r,r2,c in zip(res[::2],res[1::2],('g','m','r','b','c')):
-
-          
-          H_times = np.array(sum((r.discov_times[slice_] for slice_ in times),[]))
-          J_times = np.array(sum((r2.discov_times[slice_] for slice_ in times),[]))
-
-
-          #if r.L == 140 or r.L == 100 or r.L==120:
-               #pass
-          #     J_times = np.array([x*1.3 for x in r2.discov_times[10]]+r2.discov_times[1]+r2.discov_times[2])
-          #if r.L == 60:
-          #     H_times = np.array(r.discov_times[10]+[x*1.5 for x in r.discov_times[1]]+[x*1.5 for x in r.discov_times[2]])
-
-          
-
-          H_u,H_h= deWeight(sorted(H_times),len(H_times)/1500)
-          J_u,J_h = deWeight(sorted(J_times),len(J_times)/1500)
-
-          LIMIT = 2
-          #ax2.plot(H_u[H_h<LIMIT][:-1], savgol_filter(np.ediff1d(H_h[H_h<LIMIT])/np.ediff1d(H_u[H_h<LIMIT]),101,3),c=c)
-          #ax2.plot(J_u[J_h<LIMIT][:-1], savgol_filter(np.ediff1d(J_h[J_h<LIMIT])/np.ediff1d(J_u[J_h<LIMIT]),101,3),c=c,ls=':')
-          #ax2.plot(H_u[:-1],np.ediff1d(H_h)/np.ediff1d(H_u),c=c,ls='-')
-          #ax2.plot(J_u[:-1],np.ediff1d(J_h)/np.ediff1d(J_u),c=c,ls='--')
-
-          
-          
-
-          H_spline = InterpolatedUnivariateSpline(H_u,H_h)
-          J_spline = InterpolatedUnivariateSpline(J_u,J_h)
-
-
-          h_space= np.logspace(0,np.log10(H_u[-1]),1000)
-          j_space= np.logspace(0,np.log10(J_u[-1]),1000)
-
-          h_spaceF= np.logspace(0,np.log10(H_u[np.argmax(H_h>=2)]),1000)
-          j_spaceF= np.logspace(0,np.log10(J_u[np.argmax(J_h>=2)]),1000)
-          
-
-
-          #ax.plot(h_space,H_spline(h_space),c=c,ls='',marker='o',ms=12,markevery=.05)
-          #ax.plot(j_space,J_spline(j_space),ls='',c=c,marker='h',ms=12,markevery=.05)
-          
-          new_start=formTime(r.L//2,r.S_c)/75
-          if reslice:
-              j_spaceF = j_space[j_space>=new_start]-new_start
-          else:
-               #ax2.axvline(new_start,c=c)
-               j_spaceF = j_space
-               
-          ax2.plot(j_spaceF,J_spline(j_spaceF)-H_spline(j_spaceF),c=c)
-
-
-          argmax = np.argmax(J_spline(j_spaceF)-H_spline(j_spaceF))
-          ax.plot([j_spaceF[argmax]]*2,[H_spline(j_spaceF[argmax]),J_spline(j_spaceF[argmax])],mfc='none',mec=c,marker='o',ms=12,c=c)
-          
-
-          ax.scatter([formTime(r.L//2,r.S_c)/8.25,formTime(r.L,r.S_c)/100/.75],[1,2],c=c)
-          #ax.scatter([formTime(r.L//2,r.S_c)/75,formTime(r.L,r.S_c)/200],[1,2],c=c)
-          
-          ax.plot(H_u,H_h,ls='-',c=c,label=f'{r.L},{r.dup_rate}',alpha=1)#,marker='<',ms=10,markevery=.05)
-          
-          ax.plot(J_u,J_h,ls=(0,(6,4)),c=c,label=f'{r2.L},{r2.dup_rate}',alpha=1)#,marker='^',ms=10,markevery=.05)
-
-          #ax.plot(np.linspace(0,1e6,101),3e-06*np.linspace(0,1e6,101),'k--')
-
-
-     #ax.axhline(1,c='k',lw=3,ls='--')
-     #ax.axhline(2,c='k',lw=3,ls=':')
-          
-
-     #ax.set_yscale('log')
-     ax.set_xscale('log')
-     ax.legend()
-
-     #ax2.set_yscale('log')
-     ax2.set_xscale('log')
-     
-     plt.show(block=False)
-
-from scipy.interpolate import UnivariateSpline,InterpolatedUnivariateSpline
 
 def getGammas():
      return {60:1.71, 80:3.32, 100: 3.25, 120:4.46, 140:3.74}

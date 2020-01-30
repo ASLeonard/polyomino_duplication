@@ -1,9 +1,7 @@
 import sys
-#add local paths to load custom methods
-if not any(('scripts' in pth for pth in sys.path)):
-     sys.path.append('scripts/')
+
      
-from interface_methods import *
+from scripts.interface_methods import *
 
 import numpy as np
 import numpy.ma as ma

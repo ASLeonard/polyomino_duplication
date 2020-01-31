@@ -53,7 +53,7 @@ def plotComplexityEvolution(data,renormalise_t0=False,interaction_sets=(10,),N_s
 
         for sub_I in (1,0):
             raw_times = np.array(sum((data[index+sub_I].discov_times[slice_] for slice_ in interaction_sets),[]))
-            time_points, complexity_avg = deWeight(sorted(raw_times),N_simulations or len(interaction_sets))   
+            time_points, complexity_avg = deWeight(sorted(raw_times),N_simulations or len(interaction_sets))
             ax.plot(time_points, complexity_avg, ls='--' if sub_I else '-', c=c, label=f'{data[index+sub_I].L},{data[index+sub_I].dup_rate}',alpha=1)
 
             ## generate spline information for complexity gap
@@ -89,7 +89,7 @@ def plotCompositionBreakdown():
      print(scale)
      hets = (hets.T/scale).T/3500
      
-     asyms= np.array([32.89107322,  8.17588437, 17.44973057,  8.19035052, 38.25540118])
+     #asyms= np.array([32.89107322,  8.17588437, 17.44973057,  8.19035052, 38.25540118])
 
      for L,vals in zip([60,80,100,120,140],hets):
           for val,sgn in zip(vals,[1,-1]):
@@ -178,9 +178,11 @@ def printTransitionTable(data):
         print('Incoming at stage ',stage)
 
         for t_class in ('homodimeric','heterodimeric'):
-            print(f'\t{t_class}: ',sum((data.discov_types['class']==t_class) & (data.discov_types['stage']==stage)))#/len(data.composition_types.loc[data.composition_types['stage']==stage])*100)
-          
+            print(f'\t{t_class}: ',sum((data.discov_types['class']==t_class) & (data.discov_types['stage']==stage)))
+            #/len(data.composition_types.loc[data.composition_types['stage']==stage])*100)
+
         print('Compositions')
         for t_class in ('homodimeric','Du-Sp','heterodimeric'):
-            print(f'\t{t_class}: ',sum((data.composition_types['class']==t_class) & (data.composition_types['stage']==stage)))#/len(data.composition_types.loc[data.composition_types['stage']==stage])*100)
-    return [sum((data.composition_types['class']==t_class) & (data.composition_types['stage']==2)) for t_class in ('Du-Sp','heterodimeric')]
+            print(f'\t{t_class}: ',sum((data.composition_types['class']==t_class) & (data.composition_types['stage']==stage)))
+            #/len(data.composition_types.loc[data.composition_types['stage']==stage])*100)
+    return [sum((data.composition_types['class']==T) & (data.composition_types['stage']==2)) for T in ('Du-Sp','heterodimeric')]

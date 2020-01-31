@@ -12,7 +12,7 @@ def test_data_generation(capsys):
             assert simulation_runner.runnerCore(executable_name,40,.75,250,full_args + f' -J {dup_rate} -L {dup_rate} -V {offset}',verbose=True)
             #os.remove(f'tests/EvoRecord_Mu0.005000_S0.750000_D{dup_rate:.6f}.txt')
             for fname in ('Homology','Interactions','PIDs','Selections','Size','Strengths'):
-                os.remove(f'tests/{fname}_Run{offset}.txt') 
+                os.remove(f'tests/{fname}_Run{offset}.txt')
         print('All done!')
 
 def test_evolution_record_analysis(capsys):

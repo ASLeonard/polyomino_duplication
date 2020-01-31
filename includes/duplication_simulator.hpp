@@ -39,15 +39,6 @@ void UpdatePhylogenyTrackers(PopulationGenotype& PG, std::vector<std::tuple<Phen
 void EvolutionRunner();
 void EvolvePopulation(const std::string& run_details);
 
-//?
-//uint32_t DiscoverInteraction(bool self_interaction,bool duplication=false); 
-//uint32_t DecayInteraction(bool self_interaction, uint8_t gap);
-//uint32_t DecayDup(uint8_t gap);
-//void InteractionMetrics();
-
-//void EvolveHomology(std::string& run_details,bool self);
-//void EvolvingHomology();
-
 void SetRuntimeConfigurations(int argc, char* argv[]);
 
 //easy write method to write a binary file and clear the vector

@@ -2,7 +2,18 @@ import subprocess
 import os
 import argparse
 
+def extractExectutableName():
+    print('Finding default executable from makefile')
+    with open('makefile') as mf:
+        line = next(mf)
+        while 'TARGET' not in line:
+            line = next(mf)
+        else:
+            return line.rstrip().split()[-1]
+
 def compileExecutable(executable_name,L,root_path,fullwrite,recompile):
+    #if no name provided, take the default from the makefile
+    executable_name = executable_name or f'bin/{extractExectutableName()}_L{args.Length}'
     print('Checking if compiling is required')
     if not os.path.isfile(executable_name) or recompile:
         print('**Compiling requested**\nBuilding simulation for arguments')
@@ -12,7 +23,7 @@ def compileExecutable(executable_name,L,root_path,fullwrite,recompile):
     else:
         print('Executable already exists, proceeding')
 
-    return True
+    return executable_name
 
 def runnerCore(executable_name,L,S_c,generations,full_args,verbose):
     print(f'Attempting simulation for L: {L} S_c: {S_c}')
@@ -24,26 +35,27 @@ def runnerCore(executable_name,L,S_c,generations,full_args,verbose):
     print('Simulation complete')
     return True
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-L','--Length', type=int,required=True)
-    parser.add_argument('-S','--Strength', type=float,required=True)
-    parser.add_argument('-M','--Mutation', type=float,required=True)
-    parser.add_argument('--dup_rates', nargs='+', type=float,required=True)
-    parser.add_argument('-G','--Generations', type=int,required=True)
-    parser.add_argument('-R','--Runs', type=int)
+def primaryParser():
+    parser.add_argument('-L','--Length', type=int, required=True)
+    parser.add_argument('-S','--Strength', type=float, required=True)
+    parser.add_argument('-G','--Generations', type=int, required=True)
+    parser.add_argument('-R','--Runs', type=int, default=1)
 
-    parser.add_argument('--pathway', type=str)
+    parser.add_argument('--pathway', type=str, default='')
     parser.add_argument('--verbose', dest='verbose', default=False, action='store_true')
-    parser.add_argument('--fullwrite', dest='fullwrite', default=False, action='store_true')
+    parser.add_argument('--executable', dest='executable', default=None)
     parser.add_argument('--recompile', dest='recompile', default=False, action='store_true')
 
-    parser.set_defaults(Runs=1,pathway='')
+def main():
+    parser = primaryParser()
+    parser.add_argument('-M','--Mutation', type=float,required=True)    
+    parser.add_argument('--dup_rates', nargs='+', type=float,required=True)
+    parser.add_argument('--fullwrite', dest='fullwrite', default=False, action='store_true')
+
     args = parser.parse_args()
 
-    executable_name = f'bin/DuplicationEvolution_L{args.Length}'
     try:
-        compileExecutable(executable_name,args.Length,args.pathway,args.fullwrite,args.recompile)
+        args.executable = compileExecutable(args.executable,args.Length,args.pathway,args.fullwrite,args.recompile)
     except subprocess.CalledProcessError:
         print('Error in compiling, try and fix it?')
         return
@@ -54,7 +66,7 @@ def main():
 
     for index, dup_rate in enumerate(args.dup_rates):
         offset = index*args.Runs
-        runnerCore(executable_name,args.Length,args.Strength,args.Generations,full_args + f' -J {dup_rate} -L {dup_rate} -V {offset}',args.verbose)
+        runnerCore(args.executable,args.Length,args.Strength,args.Generations,full_args + f' -J {dup_rate} -L {dup_rate} -V {offset}',args.verbose)
 
 if __name__ == '__main__':
     main()

@@ -155,13 +155,9 @@ def plotEMP(L,S_c,normed=False,ax=None):
 
     plt.show(block=False)
 
-
-
 dd = [(60,.83),(80,.75),(100,.74),(120,.7),(140,.714)]
 
-
-
-def plotExclusion(S_c,Ls,col='orangered'):
+def plotExclusion(S_c,Ls,col='orangered',**kwargs):
     xs=np.linspace(1,500,500)
     for L in Ls:
         mut=MutualExclusion(xs,S_c,L)
@@ -170,72 +166,63 @@ def plotExclusion(S_c,Ls,col='orangered'):
     #print -np.diff(mut),sum(-np.diff(mut))
     plt.show(block=False)
 
-def plotX():
-     for s in (.625,.6875,.75):
-          plotExclusion(32,s,marker='h')
-          plotExclusion(64,s,marker='d')
-     plt.yscale('log')
-     plt.show(0)
-
 def plotInterfaceProbability(l_I,l_g,Nsamps=False):
 
-     def SF_sym(S_stars):
-          return binom(l_I/2,.5).sf(np.ceil(l_I/2*S_stars)-1)#*(1./(l_g+1))
-     def SF_asym(S_stars):
-          return binom(l_I,.5).sf(np.ceil(l_I*S_stars)-1)#-sym(S_stars))/2*((l_g-1.)/(l_g+1))
+    def SF_sym(S_stars):
+        return binom(l_I/2,.5).sf(np.ceil(l_I/2*S_stars)-1)#*(1./(l_g+1))
+    def SF_asym(S_stars):
+        return binom(l_I,.5).sf(np.ceil(l_I*S_stars)-1)#-sym(S_stars))/2*((l_g-1.)/(l_g+1))
 
-     def sym_factor(A):
-          return float(2)/(A+1)
-     def asym_factor(A):
-          return float(A-1)/(A+1)
+    def sym_factor(A):
+        return float(2)/(A+1)
+    def asym_factor(A):
+        return float(A-1)/(A+1)
 
-     s_hats=np.linspace(0,1,l_I+1)
+    s_hats=np.linspace(0,1,l_I+1)
 
-     fig, ax1 = plt.subplots()
-     ax1.plot(s_hats[::2],np.log10(sym_factor(l_g)*SF_sym(s_hats[::2])),ls='',marker='^',c='royalblue')
-     ax1.plot(s_hats,np.log10(asym_factor(l_g)*SF_asym(s_hats)),ls='',marker='o',c='firebrick')
+    _, ax1 = plt.subplots()
+    ax1.plot(s_hats[::2],np.log10(sym_factor(l_g)*SF_sym(s_hats[::2])),ls='',marker='^',c='royalblue')
+    ax1.plot(s_hats,np.log10(asym_factor(l_g)*SF_asym(s_hats)),ls='',marker='o',c='firebrick')
 
-     ax2 = ax1.twinx()
+    ax2 = ax1.twinx()
      
-     ratios=np.log10((sym_factor(l_g)*SF_sym(s_hats))/(asym_factor(l_g)*SF_asym(s_hats)))
-     ax2.plot(s_hats,ratios,c='darkseagreen',ls='',marker='h')
-     crossover=np.where(ratios>0)[0][0]
-     #ax2.axvline(s_hats[crossover],color='k',ls='--')
-     #ax2.axhline(color='k',ls='-',lw=0.2)
-     
-     Is={8:np.uint8,16:np.uint16,32:np.uint32,64:np.uint64}
-     if Nsamps:
-          set_length(l_I)
-          s_m=np.zeros(l_I+1)
-          a_m=np.zeros(l_I+1)
-          for _ in range(Nsamps):
-               indices=choice(list(cwr(range(l_g),2)))
-               if indices[0]!=indices[1]:
-                    bases=np.random.randint(0,np.iinfo(Is[l_I]).max,dtype=Is[l_I],size=2)
+    ratios=np.log10((sym_factor(l_g)*SF_sym(s_hats))/(asym_factor(l_g)*SF_asym(s_hats)))
+    ax2.plot(s_hats,ratios,c='darkseagreen',ls='',marker='h')
+    #crossover=np.where(ratios>0)[0][0]
+    #ax2.axvline(s_hats[crossover],color='k',ls='--')
+    #ax2.axhline(color='k',ls='-',lw=0.2)
+    
+    Is={8:np.uint8,16:np.uint16,32:np.uint32,64:np.uint64}
+    if Nsamps:
+        set_length(l_I)
+        s_m=np.zeros(l_I+1)
+        a_m=np.zeros(l_I+1)
+        for _ in range(Nsamps):
+            indices=choice(list(cwr(range(l_g),2)))
+            if indices[0]!=indices[1]:
+                bases=np.random.randint(0,np.iinfo(Is[l_I]).max,dtype=Is[l_I],size=2)
                     
-                    a_m[np.where(BindingStrength(*bases)>=s_hats)]+=1
-               else:
-                    base=np.random.randint(0,np.iinfo(Is[l_I]).max,dtype=Is[l_I])
-                    s_m[np.where(BindingStrength(base,base)>=s_hats)]+=1
-          s_m2=np.ma.log10(s_m/Nsamps)
-          a_m2=np.ma.log10(a_m/Nsamps)
-          ax1.plot(s_hats[::2],s_m2[::2],ls='--',c='royalblue')
-          ax1.plot(s_hats,a_m2,ls='--',c='firebrick')
+                a_m[np.where(BindingStrength(*bases)>=s_hats)]+=1
+            else:
+                base=np.random.randint(0,np.iinfo(Is[l_I]).max,dtype=Is[l_I])
+                s_m[np.where(BindingStrength(base,base)>=s_hats)]+=1
+        s_m2=np.ma.log10(s_m/Nsamps)
+        a_m2=np.ma.log10(a_m/Nsamps)
+        ax1.plot(s_hats[::2],s_m2[::2],ls='--',c='royalblue')
+        ax1.plot(s_hats,a_m2,ls='--',c='firebrick')
+        
+    #crossover_height=np.log10(asym_factor(l_g)*SF_asym(1))/2.
+    #ax1.text(crossover/float(l_I),crossover_height,'crossover',ha='right',va='center',rotation=90)
+    scale_factor=np.log10(asym_factor(l_g)*SF_asym(s_hats))[0]-np.log10(asym_factor(l_g)*SF_asym(s_hats))[-1]
+    ax1.text(.2,np.log10(sym_factor(l_g)*SF_sym(.2))-scale_factor*0.03,'symmetric',va='top')
+    ax1.text(.2,np.log10(asym_factor(l_g)*SF_asym(.2)+scale_factor*0.05),'asymmetric',va='bottom')
      
+    ax2.text(.1,(ratios[-1]-ratios[0])*.015+ratios[0],'ratio',ha='center',va='bottom')
 
-     crossover_height=np.log10(asym_factor(l_g)*SF_asym(1))/2.
-     #ax1.text(crossover/float(l_I),crossover_height,'crossover',ha='right',va='center',rotation=90)
-     scale_factor=np.log10(asym_factor(l_g)*SF_asym(s_hats))[0]-np.log10(asym_factor(l_g)*SF_asym(s_hats))[-1]
-     ax1.text(.2,np.log10(sym_factor(l_g)*SF_sym(.2))-scale_factor*0.03,'symmetric',va='top')
-     ax1.text(.2,np.log10(asym_factor(l_g)*SF_asym(.2)+scale_factor*0.05),'asymmetric',va='bottom')
-     
-     ax2.text(.1,(ratios[-1]-ratios[0])*.015+ratios[0],'ratio',ha='center',va='bottom')
+    ax1.set_ylabel(r'$  \log  Pr $')
+    ax2.set_ylabel(r'$\log \mathrm{ratio}$')
+    ax1.set_xlabel(r'$\hat{S}$')
 
-     ax1.set_ylabel(r'$  \log  Pr $')
-     ax2.set_ylabel(r'$\log \mathrm{ratio}$')
-     ax1.set_xlabel(r'$\hat{S}$')
-
-     ax1.spines['top'].set_visible(False)
-     ax2.spines['top'].set_visible(False)
-     
-     plt.show(block=False) 
+    ax1.spines['top'].set_visible(False)
+    ax2.spines['top'].set_visible(False)
+    plt.show(block=False)

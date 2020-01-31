@@ -1,6 +1,6 @@
 #include "duplication_simulator.hpp"
 #include <iostream>
-#include <cstring>
+//#include <cstring>
 
 #ifndef FULL_WRITE
 #define FULL_WRITE 0
@@ -120,102 +120,6 @@ int8_t DuplicatedHeteromericDecayRatio(const uint8_t gap) {
       return 0;
   }
   return -1;
-}
-
-void EvolvingHomology() {
-  const uint32_t N_runs=simulation_params::independent_trials;
-  std::ofstream f_out(file_base_path+"EHom_"+std::to_string(InterfaceAssembly::binding_threshold)+".BIN", std::ios::binary);
-  for(uint8_t self=0;self<2;++self) {
-#pragma omp parallel for schedule(dynamic) 
-    for(uint32_t r=0;r < N_runs;++r) {
-      std::vector<uint8_t> res;
-      res.reserve(simulation_params::generation_limit*4);
-
-      std::uniform_int_distribution<uint8_t> dis(0, interface_size-1);
-      std::uniform_int_distribution<uint8_t> dis2(0, 7);
-    
-      Genotype g(8);
-      InterfaceAssembly::RandomiseGenotype(g);
-      if(self) {
-        for(size_t n=0;n<interface_size/2;++n)
-          g[0][interface_size-n]=~g[0][n];
-        std::move(g.begin(),g.begin()+4,g.begin()+4);
-    
-      }
-      else
-        g[4]=interface_model::ReverseBits(~g[0]);
-    
-      for(uint32_t generation=1;generation<=simulation_params::generation_limit;++generation) {
-        auto hom = CalculateHomology(g);
-        res.insert(res.end(),hom.begin(),hom.end());
-        g[dis2(RNG_Engine)].flip(dis(RNG_Engine));
-      }
-#pragma omp critical(wrout)
-      {
-        BinaryWriter(f_out,res);
-      }
-    }
-  }
-    
-}
-
-void EvolveHomology(std::string& run_details,bool self) {
-  std::string file_simulation_details=run_details+".BIN";
-  std::ofstream fout_homology(file_base_path+"Bomology"+file_simulation_details,std::ios::binary); 
-
-  std::vector<double> population_fitnesses(simulation_params::population_size);
-  std::vector<PopulationGenotype> evolving_population(simulation_params::population_size),reproduced_population;
-  reproduced_population.resize(simulation_params::population_size);
-
-  Genotype g(8);
-  InterfaceAssembly::RandomiseGenotype(g);
-  if(!self) {
-    for(size_t n=0;n<interface_size/2;++n)
-      g[0][interface_size-n-1]=~g[0][n];
-    std::move(g.begin(),g.begin()+4,g.begin()+4);
-  }
-  else
-    g[4]=interface_model::ReverseBits(~g[0]);
-
-  for(auto& ep : evolving_population)
-    ep.active_space=Genotype(g);
-
-  std::uniform_int_distribution<uint8_t> dis(0, interface_size-1);
-  std::uniform_int_distribution<uint8_t> dis2(0, 7);
-
-  std::vector<uint8_t> res;
-  res.reserve(simulation_params::generation_limit*4*simulation_params::population_size);
-  
-  for(uint32_t generation=0;generation<simulation_params::generation_limit;++generation) { /*! MAIN EVOLUTION LOOP */
-    
-    uint16_t nth_genotype=0;
-    for(PopulationGenotype& evolving_genotype : evolving_population) { /*! GENOTYPE LOOP */
-      auto hom = CalculateHomology(evolving_genotype.active_space);
-      res.insert(res.end(),hom.begin(),hom.end());
-           
-      evolving_genotype.active_space[dis2(RNG_Engine)].flip(dis(RNG_Engine));
-      population_fitnesses[nth_genotype]=0;
-      const std::vector<std::pair<InteractionPair,double> > edges = InterfaceAssembly::GetActiveInterfaces(evolving_genotype.active_space);
-      for(auto edge : edges) {
-        if(edge.first==InteractionPair{0,4})
-          population_fitnesses[nth_genotype]=1;
-        if(edge.first!=InteractionPair{0,0} && edge.first!=InteractionPair{0,4} && edge.first!=InteractionPair{4,4}) {
-          population_fitnesses[nth_genotype]=0;
-          break;
-        }
-      }
-      ++nth_genotype;
-    } /*! END GENOTYPE LOOP */
-
-    /*! SELECTION */
-    uint16_t nth_repro=0;
-    auto reproducing_selection=RouletteWheelSelection(population_fitnesses);
-    for(uint16_t selected : reproducing_selection) {
-      reproduced_population[nth_repro++]=evolving_population[selected];
-    }
-    evolving_population.swap(reproduced_population);    
-  }
-  BinaryWriter(fout_homology,res);  
 }
 
 void EvolutionRunner() {
@@ -456,7 +360,7 @@ int main(int argc, char* argv[]) {
     EvolutionRunner();
     break;
   case 'M':    
-    if(strlen(argv[1]) == 5)
+    if(std::char_traits<char>::length(argv[1]) == 5)
       InteractionMetrics(argv[1][2]=='1',argv[1][3]=='1',argv[1][4]=='1');
     else
       std::cout << "Wrong number of arguments!\nNeed to specify (T/F) for formation, decay, and gamma metrics.\nFormat is -M[1/0][1/0][1/0]." << std::endl;

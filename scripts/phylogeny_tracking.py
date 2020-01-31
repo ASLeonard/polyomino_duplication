@@ -1,4 +1,4 @@
-from scripts.interface_formation import formTime
+from scripts.interaction_dynamics import formTime
 from itertools import product
 from collections import defaultdict
 import pandas as pd
@@ -17,22 +17,22 @@ def readEvolutionRecord(mu,S_c,rate,duplicate=True,FNAME=''):
         #information on phenotype evolution order
         elif ',' in line:
             sets.append(getSuperSets([{int(i) for i in ordering.split()} for ordering in line.rstrip().split(',') if ordering]))
-          #information on phenotype polyomino
+         #information on phenotype polyomino
         else:
-            parts=line.rstrip().split()
-            simulations[-1].append(tuple(int(i) for i in parts[:4])+tuple(tuple(int(i) for i in parts[q:q+4])+(float(parts[q+4]),) for q in range(4,len(parts)-4,5)))
+            PRT=line.rstrip().split()
+            simulations[-1].append(tuple(int(i) for i in PRT[:4])+tuple(tuple(int(i) for i in PRT[q:q+4])+(float(PRT[q+4]),) for q in range(4,len(PRT)-4,5)))
 
     return simulations,sets
 
 
 def getSuperSets(list_of_sets):
     super_sets=[]
-    for l1 in range(len(list_of_sets)):
+    for l1, LOS in enumerate(list_of_sets):
         for l2 in range(l1+1,len(list_of_sets)):
-            if list_of_sets[l1] < list_of_sets[l2]:
+            if LOS < list_of_sets[l2]:
                 break
         else:
-            super_sets.append(sorted(list_of_sets[l1]))
+            super_sets.append(sorted(LOS))
     return super_sets
  
 def cleanRecord(full_simulations,full_sets):
@@ -59,7 +59,7 @@ def cleanRecord(full_simulations,full_sets):
     def stripRedundancy(sequences):
         return tuple(set((tuple(seq) for seq in sequences if seq)))
 
-     ##main loop
+    ##main loop
     for i, (sim,sets) in enumerate(zip(full_simulations,full_sets)):
         sets=[timeCondition(sim,single_set) for single_set in sets]
           
@@ -87,7 +87,7 @@ def edgeClassification(ep,h_0):
         return 'heterodimeric'
     ##unclear
     else:
-        return 'heterodimeric' if h_0 else 'Du-Sp' 
+        return 'heterodimeric' if h_0 else 'Du-Sp'
 
 def generateRecord(full_simulations,full_sets,use_raw,samples):
     new_data = defaultdict(list)
@@ -106,17 +106,14 @@ def generateRecord(full_simulations,full_sets,use_raw,samples):
         trimmed_nodes=[]
         node_details=defaultdict(dict)
         homomeric_discovery, heteromeric_discovery = {}, {}
-        heteromeric_compositions = []
 
         #take longest evolutionary branch to analyse
         branch = sorted(sorted(sets,reverse=True),key=len,reverse=True)[0]
         
-        dont_break = False
         fail_rate[0] += 1
 
         newly_formed_interactions, existing_formed_interactions = [], []
         previous_generation = 0
-        initial_details={}
 
         observed_pairs = set()
         branch = branch[:3]
@@ -175,16 +172,13 @@ def generateRecord(full_simulations,full_sets,use_raw,samples):
                 else:
                     if edge_pair not in heteromeric_discovery:
                         heteromeric_discovery[edge_pair] = (stage,sim[leaf][2]  - use_raw*previous_generation)
- 
-                    
-                              
 
                 if node_details[leaf][edge_pair][2] == 0:
                     newly_formed_interactions.append({'stage':stage,'class':edgeClassification(edge[:2],node_details[leaf][edge_pair][0])})
                              
             previous_generation = sim[leaf][2]
             for (stage,composition) in heteromeric_composition.values():
-                    existing_formed_interactions.append({'stage':stage,'class':composition})     
+                existing_formed_interactions.append({'stage':stage,'class':composition})
 
         ##after all leafs recorded, take information if valid simulation
         else:
@@ -200,7 +194,8 @@ def generateRecord(full_simulations,full_sets,use_raw,samples):
             break
 
                          
-    print(f'Failed on: unstable ({fail_rate[1]}), double ({fail_rate[2]}), out of {fail_rate[0]} ({(fail_rate[1]+fail_rate[2])/fail_rate[0]:.2f}) [{fail_rate[0]-fail_rate[1]-fail_rate[2]}]')
+    print(f'Failed on: unstable ({fail_rate[1]}), double ({fail_rate[2]}), out of {fail_rate[0]}' +
+        f'({(fail_rate[1]+fail_rate[2])/fail_rate[0]:.2f}) [{fail_rate[0]-fail_rate[1]-fail_rate[2]}]')
 
     return pd.DataFrame(formed_interactions),pd.DataFrame(evolved_interactions),new_data
 
@@ -250,7 +245,7 @@ class EvolutionResult(object):
         self.discov_types = discov_types
         self.composition_types = composition_types
         self.discov_times = discov_times
-     
+
     def __repr__(self):
         return f'Evolution result for \'L:{self.L}, S_c:{self.S_c}, Dup: {self.dup_rate}\''
 
@@ -261,6 +256,6 @@ def getRes():
      loadD = (([.83],[0,.05],.00417,60),([.75],[0,.05],.003125,80), ([.74],[0,0.05],.0025,100), ([.7],[0,.05],.0021,120),([.714],[0,.05],.001786,140))
      res=[]
      for d in loadD:
-          er, err, ed, (QQ)= loadManyRecords(*d)
+          _, _, _, (QQ)= loadManyRecords(*d,use_raw=False)
           res.extend(QQ)
      return res

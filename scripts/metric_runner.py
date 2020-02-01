@@ -14,7 +14,7 @@ def runnerCore(executable_name,run_args,full_args,verbose):
     return True
 
 def main():
-    parser = PrimaryParser()
+    parser = primaryParser()
 
     parser.add_argument('--formation', dest='formation', default=False, action='store_true')
     parser.add_argument('--decay', dest='decay', default=False, action='store_true')

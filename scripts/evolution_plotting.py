@@ -43,7 +43,7 @@ def plotComplexityEvolution(data,renormalise_t0=False,interaction_sets=(10,),N_s
                 unique_times.append(time)
             else:
                 heights.pop(len(times)-index-1)
-        return unique_times[::-1],np.array(heights)
+        return unique_times[::-1], np.array(heights)
 
     _, (ax,ax2) = plt.subplots(2)
 
@@ -83,21 +83,21 @@ def plotComplexityEvolution(data,renormalise_t0=False,interaction_sets=(10,),N_s
     plt.show(block=False)
 
 def plotCompositionBreakdown():
-     hets = np.array([[2752,  813],[2234, 1020], [2771,  627], [2427,  960], [3205,  321]],dtype=np.float64)
+    hets = np.array([[2752,  813],[2234, 1020], [2771,  627], [2427,  960], [3205,  321]],dtype=np.float64)
 
-     scale = np.sum(hets,axis=1)/3500
-     print(scale)
-     hets = (hets.T/scale).T/3500
+    scale = np.sum(hets,axis=1)/3500
+    print(scale)
+    hets = (hets.T/scale).T/3500
      
-     #asyms= np.array([32.89107322,  8.17588437, 17.44973057,  8.19035052, 38.25540118])
+    #asyms= np.array([32.89107322,  8.17588437, 17.44973057,  8.19035052, 38.25540118])
 
-     for L,vals in zip([60,80,100,120,140],hets):
-          for val,sgn in zip(vals,[1,-1]):
-               plt.plot([sgn*val,0][::sgn],[L]*2)
-          print(L,vals,sum(vals))
+    for L,vals in zip([60,80,100,120,140],hets):
+         for val,sgn in zip(vals,[1,-1]):
+              plt.plot([sgn*val,0][::sgn],[L]*2)
+         print(L,vals,sum(vals))
 
-     plt.plot([0,0],[50,150])
-     plt.show(0)
+    plt.plot([0,0],[50,150])
+    plt.show(0)
 
 def plotTimex(*datas,fit_func=expon,renormalise=True,full_renorm=False,row2=False):
      
@@ -121,7 +121,7 @@ def plotTimex(*datas,fit_func=expon,renormalise=True,full_renorm=False,row2=Fals
             L_scaler = 2-stage
             ##all homomers
             if stage == 0:
-                mutate_rate_adjust = .33 #4 
+                mutate_rate_adjust = .33 #4
                 combinatoric_adjust = 4
             ##heteromers
             else:
@@ -136,7 +136,7 @@ def plotTimex(*datas,fit_func=expon,renormalise=True,full_renorm=False,row2=Fals
                     #combinatoric_adjust = 1 #4/6
                     L_scaler = 2
 
-            pop = 100 
+            pop = 100
             raw_data = np.array(data.discov_times[10 if stage == 0 else 1]+([] if (stage == 0 or not row2) else data.discov_times[2]))
             raw_data = np.random.choice(raw_data,size=1500)
 
@@ -150,7 +150,7 @@ def plotTimex(*datas,fit_func=expon,renormalise=True,full_renorm=False,row2=Fals
                     
             cmap = get_cmap('Blues_r' if data.dup_rate>0 else 'Oranges_r')
             asym_color = cmap(scaler(asym_val))
-              
+
             if fit_func:
                 fit_p = fit_func.fit(data_scaled,floc=0)
                 x_points = np.linspace(0,max(data_scaled),300)

@@ -8,8 +8,7 @@ def extractExectutableName():
         line = next(mf)
         while 'TARGET' not in line:
             line = next(mf)
-        else:
-            return line.rstrip().split()[-1]
+        return line.rstrip().split()[-1]
 
 def compileExecutable(executable_name,L,root_path,fullwrite,recompile):
     #if no name provided, take the default from the makefile
@@ -36,6 +35,8 @@ def runnerCore(executable_name,L,S_c,generations,full_args,verbose):
     return True
 
 def primaryParser():
+    parser = argparse.ArgumentParser()
+
     parser.add_argument('-L','--Length', type=int, required=True)
     parser.add_argument('-S','--Strength', type=float, required=True)
     parser.add_argument('-G','--Generations', type=int, required=True)
@@ -46,9 +47,11 @@ def primaryParser():
     parser.add_argument('--executable', dest='executable', default=None)
     parser.add_argument('--recompile', dest='recompile', default=False, action='store_true')
 
+    return parser
+
 def main():
     parser = primaryParser()
-    parser.add_argument('-M','--Mutation', type=float,required=True)    
+    parser.add_argument('-M','--Mutation', type=float,required=True)
     parser.add_argument('--dup_rates', nargs='+', type=float,required=True)
     parser.add_argument('--fullwrite', dest='fullwrite', default=False, action='store_true')
 

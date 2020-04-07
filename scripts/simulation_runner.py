@@ -12,7 +12,7 @@ def extractExectutableName():
 
 def compileExecutable(executable_name,L,root_path,fullwrite,recompile):
     #if no name provided, take the default from the makefile
-    executable_name = executable_name or f'bin/{extractExectutableName()}_L{args.Length}'
+    executable_name = executable_name or f'bin/{extractExectutableName()}_L{L}'
     print('Checking if compiling is required')
     if not os.path.isfile(executable_name) or recompile:
         print('**Compiling requested**\nBuilding simulation for arguments')

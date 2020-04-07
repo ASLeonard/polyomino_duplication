@@ -1,4 +1,5 @@
-from scripts.interface_formation import formTime
+from scripts.interaction_dynamics import formTime
+from scripts.phylogeny_tracking import getRes
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
@@ -35,34 +36,40 @@ def plotSingleHomology(data,L,ax,user_color='red',smooth_window=0):
 
 def plotComplexityEvolution(data,renormalise_t0=False,interaction_sets=(10,),N_simulations=None):
 
-    def deWeight(times,init=1):
-        heights = list(np.linspace(1/len(times),init,len(times)))
+    def deWeight(times,N_int=3,N_sim=None):
+        upper_limit = len(times)/N_sim if N_sim else N_int
+
+        heights = list(np.linspace(1/len(times),upper_limit,len(times)))
         unique_times = []
-        for index,time in enumerate(reversed(times)):
+        for index,time in enumerate(times):
             if time not in unique_times:
                 unique_times.append(time)
             else:
                 heights.pop(len(times)-index-1)
         return unique_times[::-1], np.array(heights)
 
-    _, (ax,ax2) = plt.subplots(2)
-
-    for index, c in zip(range(0,len(data),2),('g','m','r','b','c')):
+    _, axes = plt.subplots(3,2,sharex=True)
+    ax2 = axes.flatten()[-1]
+    for index, c,ax in zip(range(0,len(data),2),('g','c','purple','r','brown'),axes.flatten()):
         spline_data = []
         time_window = None
 
         for sub_I in (1,0):
             raw_times = np.array(sum((data[index+sub_I].discov_times[slice_] for slice_ in interaction_sets),[]))
-            time_points, complexity_avg = deWeight(sorted(raw_times),N_simulations or len(interaction_sets))
+            time_points, complexity_avg = deWeight(sorted(raw_times,reverse=True),len(interaction_sets),N_sim=N_simulations)
+        
+            time_samples = np.logspace(0,np.log10(max(time_points)),100)
             ax.plot(time_points, complexity_avg, ls='--' if sub_I else '-', c=c, label=f'{data[index+sub_I].L},{data[index+sub_I].dup_rate}',alpha=1)
 
             ## generate spline information for complexity gap
             complexity_spline = InterpolatedUnivariateSpline(time_points, complexity_avg)
+
             spline_data.append(complexity_spline)
 
             ##TODO, what is the ideal slice point here?
-            time_window = np.linspace(1,time_points[np.argmax(complexity_avg>=3)],250)
-            #,complexity_avg[-1]
+        time_window = np.argmax(spline_data[0](time_samples)>.95*max(complexity_avg))
+        print(time_window)
+
         
         new_start=formTime(data[index+sub_I].L//2,data[index+sub_I].S_c)/75
         if renormalise_t0:
@@ -70,16 +77,18 @@ def plotComplexityEvolution(data,renormalise_t0=False,interaction_sets=(10,),N_s
         else:
             ax2.axvline(new_start,c=c)
 
-        complexity_gap = spline_data[0](time_window)-spline_data[1](time_window)
+        complexity_gap = spline_data[0](time_samples[:time_window])-spline_data[1](time_samples[:time_window])
         max_gap = np.argmax(complexity_gap)
-        ax.plot([time_window[max_gap]]*2,[spline_data[0](time_window[max_gap]),spline_data[1](time_window[max_gap])],mfc='none',mec=c,marker='o',ms=12,c=c)
 
-        time_window = time_window[:max_gap+1]
-        ax2.plot(time_window,spline_data[0](time_window)-spline_data[1](time_window), c=c)
+        
+        ax.plot([time_samples[max_gap]]*2,[spline_data[0](time_samples[max_gap]),spline_data[1](time_samples[max_gap])],mfc='none',mec=c,marker='o',ms=12,c=c)
+        time_samples=time_samples[:time_window]
+        #time_window = time_window[:max_gap+1]
+        ax2.plot(time_samples,spline_data[0](time_samples)-spline_data[1](time_samples), c=c)
 
-    ax.set_xscale('log')
-    ax2.set_xscale('log')
-    ax.legend()
+        ax.set_xscale('log')
+        ax2.set_xscale('log')
+        ax.legend()
     plt.show(block=False)
 
 def plotCompositionBreakdown():
@@ -114,9 +123,8 @@ def plotTimex(*datas,fit_func=expon,renormalise=True,full_renorm=False,row2=Fals
     #*getGammas()[data.L]/100)
     print(asyms)
     scaler=LogNorm(min(asyms),max(asyms)*2)
-
+    mid_data=[]
     for stage in range(N):
-        mid_data= []
         for asym_val, data in zip(asyms,datas):
             L_scaler = 2-stage
             ##all homomers
@@ -164,6 +172,7 @@ def plotTimex(*datas,fit_func=expon,renormalise=True,full_renorm=False,row2=Fals
                 BINS=30
 
             mid_data.append(data_scaled)
+            print(len(mid_data))
 
 
         ax[stage].set_yscale('log',nonposy='clip')
@@ -172,6 +181,7 @@ def plotTimex(*datas,fit_func=expon,renormalise=True,full_renorm=False,row2=Fals
     ax[0].tick_params(axis='both', which='major', labelsize=16)
     ax[1].tick_params(axis='both', which='major', labelsize=16)
     plt.show(block=False)
+    return mid_data
 
 def printTransitionTable(data):
     for stage in range(max(data.discov_types['stage'])+1):

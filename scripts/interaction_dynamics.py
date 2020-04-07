@@ -161,7 +161,7 @@ def plotExclusion(S_c,Ls,col='orangered',**kwargs):
     xs=np.linspace(1,500,500)
     for L in Ls:
         mut=MutualExclusion(xs,S_c,L)
-        plt.plot(xs,mut,c=col,marker='h',ls='')
+        plt.plot(xs,mut,c=col,ls='-',**kwargs)
     #plt.plot(xs[:-1],-np.diff(mut),c='royalblue')
     #print -np.diff(mut),sum(-np.diff(mut))
     plt.show(block=False)

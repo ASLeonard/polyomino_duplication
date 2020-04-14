@@ -1,6 +1,5 @@
 from scripts.simulation_runner import compileExecutable, primaryParser
 import subprocess
-import argparse
 
 def runnerCore(executable_name,run_args,full_args,verbose):
     print(f'Running metrics for chosen data')

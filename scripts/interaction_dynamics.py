@@ -216,7 +216,7 @@ def plotInterfaceProbability(l_I,l_g,Nsamps=False):
     scale_factor=np.log10(asym_factor(l_g)*SF_asym(s_hats))[0]-np.log10(asym_factor(l_g)*SF_asym(s_hats))[-1]
     ax1.text(.2,np.log10(sym_factor(l_g)*SF_sym(.2))-scale_factor*0.03,'symmetric',va='top')
     ax1.text(.2,np.log10(asym_factor(l_g)*SF_asym(.2)+scale_factor*0.05),'asymmetric',va='bottom')
-     
+
     ax2.text(.1,(ratios[-1]-ratios[0])*.015+ratios[0],'ratio',ha='center',va='bottom')
 
     ax1.set_ylabel(r'$  \log  Pr $')

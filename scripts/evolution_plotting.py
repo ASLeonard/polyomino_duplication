@@ -1,5 +1,4 @@
 from scripts.interaction_dynamics import formTime
-from scripts.phylogeny_tracking import getRes
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
@@ -155,7 +154,7 @@ def plotTimex(*datas,fit_func=expon,renormalise=True,full_renorm=False,row2=Fals
                 data_scaled *=1.3
             if (data.L == 60) and stage == 1 and data.dup_rate==0:
                 data_scaled *=1.5
-                    
+
             cmap = get_cmap('Blues_r' if data.dup_rate>0 else 'Oranges_r')
             asym_color = cmap(scaler(asym_val))
 
@@ -163,13 +162,6 @@ def plotTimex(*datas,fit_func=expon,renormalise=True,full_renorm=False,row2=Fals
                 fit_p = fit_func.fit(data_scaled,floc=0)
                 x_points = np.linspace(0,max(data_scaled),300)
                 ax[stage].plot(x_points,fit_func(*fit_p).pdf(x_points),marker=markers[data.L],markevery=[0,-1],c=asym_color,ls='-' if data.dup_rate ==0 else '--',lw=4,mew=5,mfc='none',ms=30,alpha=1,label=f'L:{data.L}, S_c:{data.S_c}' if data.dup_rate !=-1 else None)
-            if renormalise:
-                if not full_renorm and stage == 1 and data.dup_rate > 0.01:
-                    BINS = np.linspace(0,.5,11)
-                else:
-                    BINS = np.linspace(0,3,31) if stage ==1 else np.linspace(0,3,31)
-            else:
-                BINS=30
 
             mid_data.append(data_scaled)
             print(len(mid_data))

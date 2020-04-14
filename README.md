@@ -9,13 +9,13 @@
 ## Install
 
 There are several requirements to using the software
- - recent c++ compiler which supports c++2a (tested on g++ 8)
- - recent python (developed on 3.6.9)
- - several common python package found in requirements.txt
-   - numpy
-   - scipy
-   - etc
- - pytest (optional)
+- recent c++ compiler which supports c++2a (tested on g++ 8)
+- recent python (developed on 3.6.9)
+- several common python package found in requirements.txt
+ - numpy
+ - scipy
+ - etc
+- pytest (optional)
 
 The installation process is as follows 
 

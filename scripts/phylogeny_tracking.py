@@ -240,7 +240,7 @@ class EvolutionResult(object):
         self.mu = mu
         self.dup_rate = dup_rate
         self.asym = formTime(L,S_c)/formTime(L//2,S_c)
-         
+
     def addData(self,discov_types, composition_types, discov_times):
         self.discov_types = discov_types
         self.composition_types = composition_types

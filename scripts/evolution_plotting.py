@@ -1,5 +1,5 @@
 from scripts.interaction_dynamics import formTime
-
+from scripts.phylogeny_tracking import loadSimulationResults
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 from matplotlib.cm import get_cmap
@@ -83,7 +83,7 @@ def plotComplexityEvolution(data,renormalise_t0=False,interaction_sets=(10,),N_s
     plt.show(block=False)
 
 
-def plotTimex(*datas,fit_func=expon,renormalise=True,full_renorm=False,row2=False):
+def plotTimeDistributions(*datas,fit_func=expon,renormalise=True,full_renorm=False,row2=False):
     if full_renorm:
         assert renormalise, 'conflicting settings'
     N = 2

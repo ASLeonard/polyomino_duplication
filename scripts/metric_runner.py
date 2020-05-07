@@ -17,7 +17,7 @@ def main():
 
     parser.add_argument('--formation', dest='formation', default=False, action='store_true')
     parser.add_argument('--decay', dest='decay', default=False, action='store_true')
-    parser.add_argument('--gamma', dest='gamma', default=False, action='store_true')
+    parser.add_argument('--epsilon', dest='gamma', default=False, action='store_true')
 
     args = parser.parse_args()
 

@@ -218,9 +218,7 @@ def loadManyRecords(strengths,rates,mu,L,use_raw,FNAME='scripts/'):
         results = results[0]
     return results
 
-def loadSimulationResults(use_raw=False,samples=None):
-    sim_params = (([.83],[0,.05],.00417,60),([.75],[0,.05],.003125,80), ([.74],[0,0.05],.0025,100), ([.7],[0,.05],.0021,120),([.714],[0,.05],.001786,140))
-    
+def loadSimulationResults(sim_params = (([.83],[0,.05],.00417,60),([.75],[0,.05],.003125,80), ([.74],[0,0.05],.0025,100), ([.7],[0,.05],.0021,120),([.714],[0,.05],.001786,140)),use_raw=False,samples=None):    
     results = []
     for param in sim_params:
         for (S_hat, rate) in product(*param[:2]):

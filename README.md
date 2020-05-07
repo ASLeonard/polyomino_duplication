@@ -7,6 +7,7 @@
 Polyomino model of lattice self-assembly for exploring the role of duplication in the evolution of structural complexity in protein complexes. Further information can be found in this [preprint](https://www.biorxiv.org/content/10.1101/2020.04.22.054783v1).
 
 ## Overview
+There are two main components to the duplication evolution simulations. There is the evolution framework implemented in c++ (found in the src/, include/, and polyomino_core/ folders), as well as analysis and plotting tools implemented in python (founds in the scripts/ folder). The main methods have been made easily accessible to command line calls (see later), but can also be run or edited at a lower level if desired. Some more details on the polyomino background can be found in the original repository [here](https://github.com/ASLeonard/polyomino_core), with more details on the specific binary binding site model [here](https://github.com/ASLeonard/polyomino_interfaces).
 
 ## Install
 
@@ -37,11 +38,7 @@ python -m pytest tests/
 ```
 Which verifies the compiling works and the simulations/analyses occur properly. Several compiler flags can be added depending on what is available on the user's system if desired, like g++ has support for multi-threading (-fopenmp) and link-time optimization (-flto), but are not required to be used.
 
-## Usage
-
-
-
-### Examples
+## Usage examples
 
 Data generation can be run directly from the command line either via the c++ executable or an easier python interface. An example of the python interface is shown below.
 
@@ -62,4 +59,3 @@ data = loadSimulationResults()
 printTransitionTable(data)
 plotTimeDistributions(*data)
 ```
-

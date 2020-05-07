@@ -210,9 +210,7 @@ def plotInterfaceProbability(l_I,l_g,Nsamps=False):
         a_m2=np.ma.log10(a_m/Nsamps)
         ax1.plot(s_hats[::2],s_m2[::2],ls='--',c='royalblue')
         ax1.plot(s_hats,a_m2,ls='--',c='firebrick')
-        
-    #crossover_height=np.log10(asym_factor(l_g)*SF_asym(1))/2.
-    #ax1.text(crossover/float(l_I),crossover_height,'crossover',ha='right',va='center',rotation=90)
+
     scale_factor=np.log10(asym_factor(l_g)*SF_asym(s_hats))[0]-np.log10(asym_factor(l_g)*SF_asym(s_hats))[-1]
     ax1.text(.2,np.log10(sym_factor(l_g)*SF_sym(.2))-scale_factor*0.03,'symmetric',va='top')
     ax1.text(.2,np.log10(asym_factor(l_g)*SF_asym(.2)+scale_factor*0.05),'asymmetric',va='bottom')

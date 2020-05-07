@@ -1,9 +1,9 @@
-from scripts import metric_runner, interaction_dynamics
+from scripts import metric_runner, interaction_dynamics, simulation_runner
 import os
 import warnings
 
 def test_metric_run(capsys):
-    executable_name = f'bin/DuplicationEvolution_L40'
+    executable_name = f'bin/{simulation_runner.extractExectutableName()}_L40'
     with capsys.disabled():
         print('Running metrics')
         metric_runner.runnerCore(executable_name,'111','-D 250 -Y .75 -G 5000',True)

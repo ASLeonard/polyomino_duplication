@@ -24,7 +24,7 @@ def compileExecutable(executable_name,L,root_path,fullwrite,recompile):
 
     return executable_name
 
-def runnerCore(executable_name,L,S_c,generations,full_args,verbose):
+def runnerCore(executable_name,L,S_c,full_args,verbose):
     print(f'Attempting simulation for L: {L} S_c: {S_c}')
 
     if verbose:
@@ -69,7 +69,7 @@ def main():
 
     for index, dup_rate in enumerate(args.dup_rates):
         offset = index*args.Runs
-        runnerCore(args.executable,args.Length,args.Strength,args.Generations,full_args + f' -J {dup_rate} -L {dup_rate} -V {offset}',args.verbose)
+        runnerCore(args.executable,args.Length,args.Strength,full_args + f' -J {dup_rate} -L {dup_rate} -V {offset}',args.verbose)
 
 if __name__ == '__main__':
     main()

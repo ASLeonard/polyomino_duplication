@@ -227,11 +227,9 @@ def loadSimulationResults(use_raw=False,samples=None):
             ER = EvolutionResult(param[3],S_hat,param[2],rate)
             ER.addData(*makeRecord(ER.S_c, ER.mu, ER.dup_rate,use_raw,samples))
             results.append(ER)
-        
-        #results.extend(loadManyRecords(*d,use_raw=use_raw))
+
     return results
 
-     
 class EvolutionResult(object):
     __slots__ = ('L','S_c','mu','dup_rate','asym','discov_types','composition_types','discov_times','div')
     def __init__(self,L=None,S_c=None,mu=None,dup_rate=None):
